@@ -240,7 +240,56 @@ fine-scale noise, which is also why the `edge_corr` diagnostic falls during
 training while coarse structure is untouched: the added noise is uncorrelated with
 the input's own fine detail by construction.
 
-### 3. Geometry: preserved, and this part is solid
+### 3. How much the generator distorts input that is already TXM
+
+The five reference-specimen mosaics are excluded from the training banks, so
+feeding one to the generator and comparing `G(x)` against `x` is a genuine held-out
+paired test -- the only one available without cross-modality pairs. It is a
+*necessary* condition: a model that mangles input already in the target domain
+cannot be trusted to land a SEM frame there.
+
+It does not pass.
+
+| held-out frame | SSIM | PSNR | pearson | NMI |
+|---|---|---|---|---|
+| `260618_B2_333_75_um_zoom` | 0.6063 | 17.47 | +0.7570 | 1.0664 |
+| `260618_b2_336_25` | 0.6250 | 17.81 | +0.7775 | 1.0718 |
+| `260618_b2_338_13` | 0.6232 | 17.68 | +0.7720 | 1.0700 |
+| `260618_b2_343_75_LARGE` | 0.5051 | 15.24 | +0.5704 | 1.0619 |
+| `260618_b2_343_75` | 0.6043 | 16.94 | +0.7123 | 1.0618 |
+| **mean** | **0.5928** ±0.0446 | | **+0.7178** | **1.0664** |
+
+An SSIM of 0.59 means nothing on its own, so the same frame was perturbed by known
+amounts to build a ladder (`./run identity` prints it):
+
+| perturbation | SSIM | pearson | NMI |
+|---|---|---|---|
+| gaussian blur sigma 1 | 0.5955 | 0.9064 | 1.1288 |
+| gaussian blur sigma 2 | 0.3926 | 0.8607 | 1.0974 |
+| **gaussian blur sigma 4** | 0.2437 | **0.7988** | **1.0731** |
+| gaussian blur sigma 8 | 0.1416 | 0.7021 | 1.0492 |
+| additive noise sd 0.10 | 0.6356 | 0.8469 | 1.0939 |
+| shifted 2 px | 0.1454 | 0.6369 | 1.0377 |
+| **measured G(TXM)** | **0.6232** | **0.7720** | **1.0700** |
+
+Read the correlation and mutual-information columns, which track information loss
+rather than local structure: the generator's effect on in-domain input is
+comparable to a **Gaussian blur of about 4 pixels** (0.799 / 1.073 against the
+measured 0.772 / 1.070). On SSIM alone it looks like blur sigma 1, and that is the
+misleading reading -- SSIM is higher than a sigma-4 blur's 0.244 because the output
+is not simply smoothed, but the information it retains about its own input is
+sigma-4 level.
+
+This explains the rest of the results rather than sitting beside them. A generator
+that costs ~4 px of effective resolution on an image already in the target domain
+cannot place a SEM frame's fine structure correctly either, which is why crack
+contrast survives proportionally (section 4, coarse features) while the downstream
+detector gains nothing (section 1, which needs fine ones). And note the identity
+term's own training loss fell to 0.024 -- that is a loss in NCE feature space, and
+it is now clear that low identity-NCE does not imply low pixel-level distortion.
+The thing being optimised was not the thing that mattered.
+
+### 4. Geometry: preserved, and this part is solid
 
 ![SEM input beside its translation: crack outline, grain network and pores in the same places, no visible tile seams](figures/full_frame.png)
 

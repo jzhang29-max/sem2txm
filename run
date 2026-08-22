@@ -20,6 +20,7 @@ case "$stage" in
   train)    exec "$PY" code/train.py "${@:2}" ;;
   apply)    exec "$PY" code/translate.py "${@:2}" ;;
   eval)     exec "$PY" code/eval_translation.py "${@:2}" ;;
+  identity) exec "$PY" code/eval_identity.py "${@:2}" ;;
   transfer) exec "$PY" code/eval_label_transfer.py "${@:2}" ;;
   figures)  "$PY" code/make_panels.py; exec "$PY" code/make_figures.py ;;
   scale)    exec "$PY" code/read_scale.py "${@:2}" ;;
@@ -41,6 +42,7 @@ usage: ./run [stage] [args...]
   train      train the SEM -> TXM translator
   apply      translate whole SEM frames
   eval       appearance + geometry measurements
+  identity   how much the generator distorts held-out real TXM
   transfer   the label-transfer experiment (arms A/B/C/D)
   figures    regenerate every figure the README points at
   scale      recover SEM um/px from the burned-in scale bar
