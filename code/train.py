@@ -291,13 +291,15 @@ def main():
             xl1 = (fake_b.detach() - a.detach()).abs().mean().item()
             w.writerow([it, f"{d_loss.item():.4f}", f"{g_gan.item():.4f}",
                         f"{g_nce.item():.4f}", f"{g_idt.item():.4f}",
-                        f"{float(g_idt_l1):.4f}", f"{float(g_idt_hf):.4f}",
+                        f"{g_idt_l1.detach().item():.4f}",
+                        f"{g_idt_hf.detach().item():.4f}",
                         f"{px_l1:.4f}", f"{px_r:.4f}", f"{xl1:.4f}",
                         f"{ec:.4f}", f"{time.time()-t0:.1f}"])
             log.flush()
             print(f"it {it:6d}  D {d_loss.item():.3f}  Ggan {g_gan.item():.3f}  "
                   f"NCE {g_nce.item():.3f}  idt {g_idt.item():.3f}  "
-                  f"idtL1 {float(g_idt_l1):.3f}  idtHF {float(g_idt_hf):.3f}  "
+                  f"idtL1 {g_idt_l1.detach().item():.3f}  "
+                  f"idtHF {g_idt_hf.detach().item():.3f}  "
                   f"| px_l1 {px_l1:.4f} px_r {px_r:+.3f} xlate {xl1:.4f} | "
                   f"edge_corr {ec:.3f}  {time.time()-t0:.0f}s", flush=True)
 
