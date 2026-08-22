@@ -17,6 +17,12 @@ figures/*.png
 !figures/label_transfer.png
 !figures/crack_contrast.png
 
+# The databar panels are evidence for the scale recovery, but 51 of them is
+# clutter. Keep the one frame the README quotes numbers from, so that claim stays
+# checkable, and regenerate the rest with `./run scale`.
+figures/databars/*
+!figures/databars/260622_316_H_b2_front_CBS_01_databar.png
+
 __pycache__/
 *.pyc
 .venv/
