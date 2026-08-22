@@ -94,6 +94,8 @@ def main():
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--force", action="store_true",
+                    help="retranslate frames already on disk")
     ap.add_argument("--masked-only", action="store_true",
                     help="only frames that carry a hand-drawn correction mask -- "
                          "the 39 the label-transfer experiment can actually use")
@@ -122,6 +124,9 @@ def main():
         src = C.CACHE / "sem" / f"{stem}.npy"
         if not src.exists():
             print(f"  skip {stem}: not cached")
+            continue
+        if not args.force and (outdir / f"{stem}.npy").exists():
+            print(f"  [{i+1}/{len(stems)}] {stem[:52]} already done")
             continue
         img01 = np.load(src).astype(np.float32) / 255.0
         o = translate(G, img01, dev, args.tile, args.overlap, args.batch)

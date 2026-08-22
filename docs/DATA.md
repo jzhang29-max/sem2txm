@@ -122,3 +122,45 @@ sees them. Four of them carry dense GT and are the label-transfer test set; the
 fifth is a second field of view of `343_75` and would leak into it. This follows
 the exclusion the TXM repo already established, and for the same reason: a gate
 graded with part of the answer key in the training set means nothing.
+
+## Two sampling bugs the checks caught
+
+Both would have produced plausible-looking numbers, which is why the checks are
+asserted in code rather than left to inspection.
+
+**Feature windows need a 192 px margin, not 32.** The per-pixel features come from
+`compute_feature_stack`, and the experiment needs them for every labelled pixel of
+every image, per seed -- hundreds of whole-frame passes over up to 23 megapixels.
+Computing them on windows instead is far cheaper and, for a pixel far enough
+inside the window, identical. "Far enough" was first set at 32 px by reading
+`GRADIENT_SIGMAS` and `LAPLACIAN_SIGMAS`, which stop at 8. But `SMOOTH_SIGMAS`
+runs to **64**, and comparing window features against a whole-frame pass showed
+1.8e-2 of error concentrated in `smooth_s16/32/64`. At 192 px the residual is
+1.5e-4, in `smooth_s64` alone.
+
+**Random window origins do not sample a frame uniformly.** With a 384 px core, a
+pixel five rows from the frame edge lies inside 6 possible windows while a central
+pixel lies inside 384 -- so the centre is over-represented about 64-fold. The
+cracks in these frames are central, so the test set came out at 42.3 / 35.8 / 39.1
+/ 24.9% crack against true whole-frame prevalence of 25.5 / 27.0 / 29.7 / 18.6%.
+IoU measured against the wrong prevalence is simply the wrong IoU.
+
+The fix is to tile the frame with non-overlapping cores -- every pixel belongs to
+exactly one tile -- and to allocate each tile a share of the sample proportional
+to its area, so the smaller edge tiles are neither over- nor under-weighted.
+Frames are reflect-padded by the margin first, which is not a convenience:
+`compute_feature_stack` filters with scipy's default `mode="reflect"`, so a
+reflect-padded window reproduces exactly what a whole-frame pass computes at the
+border.
+
+`build_test` now prints sampled prevalence beside whole-frame prevalence for every
+test frame and flags any gap over 3 points, so this cannot regress quietly:
+
+```
+test 260618_B2_333_75_um_zoom   n=119998 pos=25.6% (whole frame 25.5%)
+test 260618_b2_336_25           n=120006 pos=27.2% (whole frame 27.0%)
+test 260618_b2_338_13           n=119993 pos=29.8% (whole frame 29.7%)
+```
+
+29.8% against the 29.7% the TXM repo documents for that frame is also a check that
+this repo is reading the same ground truth that one does.

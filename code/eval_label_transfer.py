@@ -72,6 +72,41 @@ FILTER_MARGIN = 192
 WINDOW = 768
 
 
+def reflect_pad(img01):
+    """Pad by FILTER_MARGIN with reflection so a window core can sit anywhere in
+    the original frame, borders included.
+
+    Without this, cores can only cover the frame minus a 192 px rim, which biased
+    the test prevalence badly: the four GT frames read 36.7 / 43.5 / 47.1% crack
+    windowed against 25.5 / 27.0 / 29.7% whole-frame, because the cracks are
+    central and the excluded rim is mostly not-crack. IoU against a wrong
+    prevalence is a wrong IoU.
+
+    Reflection is the right padding rather than a convenience: compute_feature_stack
+    filters with scipy's default mode='reflect', so a reflect-padded window
+    reproduces what a whole-frame pass computes at the border.
+    """
+    m = FILTER_MARGIN
+    return np.pad(np.asarray(img01, np.float32), m, mode="reflect")
+
+
+def core_tiles(h, w):
+    """Tile the frame with non-overlapping cores. Every pixel is in exactly one.
+
+    Random sliding origins do NOT sample a frame uniformly: with a core of 384,
+    a pixel 5 rows from the edge lies in 6 possible windows while a central one
+    lies in 384, so the centre is over-represented ~64x. That is what made the
+    test prevalence read 42% against a true 25%. A tiling has no such weighting.
+    Returns (core, [(y, x, h_i, w_i), ...]).
+    """
+    core = WINDOW - 2 * FILTER_MARGIN
+    tiles = []
+    for y in range(0, h, core):
+        for x in range(0, w, core):
+            tiles.append((y, x, min(core, h - y), min(core, w - x)))
+    return core, tiles
+
+
 def sample_windows(img01, pos_mask, neg_mask, n, rng, win=WINDOW, max_windows=400):
     """Rows from random windows rather than from a whole-frame feature stack.
 
@@ -83,33 +118,35 @@ def sample_windows(img01, pos_mask, neg_mask, n, rng, win=WINDOW, max_windows=40
     edge-contaminated context.
     """
     h, w = img01.shape
-    win = min(win, h, w)
-    inner = win - 2 * FILTER_MARGIN
-    if inner <= 0:
+    if min(h, w) < 64:
         return None
+    padded = reflect_pad(img01)
+    core, tiles = core_tiles(h, w)
+    rng.shuffle(tiles)
+    tiles = tiles[:max_windows]
     Xs, yl = [], []
     got_pos = got_neg = 0
     want_pos = n // 2
     want_neg = n - want_pos
-    for _ in range(max_windows):
+    for (cy, cx, ch, cw) in tiles:
         if got_pos >= want_pos and got_neg >= want_neg:
             break
-        y0 = int(rng.integers(0, h - win + 1))
-        x0 = int(rng.integers(0, w - win + 1))
-        sl = (slice(y0, y0 + win), slice(x0, x0 + win))
-        pm = pos_mask[sl][FILTER_MARGIN:-FILTER_MARGIN, FILTER_MARGIN:-FILTER_MARGIN]
-        nm = neg_mask[sl][FILTER_MARGIN:-FILTER_MARGIN, FILTER_MARGIN:-FILTER_MARGIN]
+        pm = pos_mask[cy:cy + ch, cx:cx + cw]
+        nm = neg_mask[cy:cy + ch, cx:cx + cw]
         if not pm.any() and not nm.any():
             continue
-        st = compute_feature_stack(np.asarray(img01[sl], np.float32))
-        core = st[FILTER_MARGIN:-FILTER_MARGIN, FILTER_MARGIN:-FILTER_MARGIN, :]
-        for mask, want, got, lab in ((pm, want_pos, got_pos, 1), (nm, want_neg, got_neg, 0)):
+        wnd = padded[cy:cy + ch + 2 * FILTER_MARGIN, cx:cx + cw + 2 * FILTER_MARGIN]
+        st = compute_feature_stack(wnd)
+        m = FILTER_MARGIN
+        flat = st[m:m + ch, m:m + cw, :].reshape(-1, st.shape[-1])
+        for mask, want, lab in ((pm, want_pos, 1), (nm, want_neg, 0)):
+            got = got_pos if lab == 1 else got_neg
             need = want - got
             if need <= 0 or not mask.any():
                 continue
             idx = np.flatnonzero(mask.ravel())
             take = idx if len(idx) <= need else rng.choice(idx, need, replace=False)
-            Xs.append(core.reshape(-1, core.shape[-1])[take])
+            Xs.append(flat[take])
             yl.append(np.full(len(take), lab, np.int8))
             if lab == 1:
                 got_pos += len(take)
@@ -118,6 +155,13 @@ def sample_windows(img01, pos_mask, neg_mask, n, rng, win=WINDOW, max_windows=40
     if not Xs:
         return None
     return np.concatenate(Xs), np.concatenate(yl)
+
+
+def sample_from(img01, pos_mask, neg_mask, n, rng):
+    """Balanced rows for one image, or None if either class is absent here."""
+    if n <= 0 or not pos_mask.any() or not neg_mask.any():
+        return None
+    return sample_windows(img01, pos_mask, neg_mask, n, rng)
 
 
 def txm_rows(budget, rng, exclude_stems):
@@ -149,6 +193,29 @@ def txm_rows(budget, rng, exclude_stems):
     return (np.concatenate(Xs), np.concatenate(ys)) if Xs else (None, None)
 
 
+def sem_negative_mask(stem, m, far_px):
+    """Negatives for one SEM frame, cached on disk.
+
+    The expensive part is the Euclidean distance transform used to find unmarked
+    pixels far from anything the reviewer touched -- on a 25 megapixel frame that
+    is seconds, and it was being recomputed for every frame, every sampler call,
+    every seed: 162 times over a 3-seed run. It depends only on the mask, so it
+    is computed once per frame and kept.
+    """
+    cdir = C.CACHE / "sem_neg"
+    cdir.mkdir(parents=True, exist_ok=True)
+    cf = cdir / f"{stem}_far{far_px}.npz"
+    if cf.exists():
+        z = np.load(cf)
+        far = np.unpackbits(z["far"], count=m.size).reshape(m.shape).astype(bool)
+        return (m == 2) | far, int(z["n_explicit"]), int(z["n_far"])
+    touched = m > 0
+    far = (~touched) & (ndi.distance_transform_edt(~touched) > far_px)
+    np.savez_compressed(cf, far=np.packbits(far),
+                        n_explicit=int((m == 2).sum()), n_far=int(far.sum()))
+    return (m == 2) | far, int((m == 2).sum()), int(far.sum())
+
+
 def sem_rows(budget, rng, translated, far_px=50):
     """Rows from the SEM frames that carry a hand-drawn correction mask.
 
@@ -161,16 +228,23 @@ def sem_rows(budget, rng, translated, far_px=50):
     from PIL import Image
     man = json.loads((C.CACHE / "manifest.json").read_text())
     src = (C.CACHE / "translated") if translated else (C.CACHE / "sem")
+    # Arms B and C must draw on the SAME frames, or C wins or loses on frame count
+    # rather than on whether the translation helped. So the eligible set is the
+    # intersection: a mask, a preprocessed frame, AND a translation on disk --
+    # regardless of which of the two this call is sampling.
     have = []
     for e in man["sem"]:
         mp = C.SEM_MASK_DIR / f"{e['stem']}_correction_mask.png"
-        if mp.exists() and (src / f"{e['stem']}.npy").exists():
+        if (mp.exists()
+                and (C.CACHE / "sem" / f"{e['stem']}.npy").exists()
+                and (C.CACHE / "translated" / f"{e['stem']}.npy").exists()):
             have.append((e["stem"], mp))
     rng.shuffle(have)
     per = max(1, budget // max(len(have), 1))
     Xs, ys = [], []
     got = 0
     n_explicit = n_far = 0
+    used = set()
     for stem, mp in have:
         if got >= budget:
             break
@@ -182,21 +256,53 @@ def sem_rows(budget, rng, translated, far_px=50):
         crack = m == 1
         if crack.sum() < 500:
             continue
-        touched = m > 0
-        far = (~touched) & (ndi.distance_transform_edt(~touched) > far_px)
-        neg = (m == 2) | far
-        n_explicit += int((m == 2).sum()); n_far += int(far.sum())
+        neg, n_e, n_f = sem_negative_mask(stem, m, far_px)
+        n_explicit += n_e; n_far += n_f
         r = sample_from(img01, crack, neg, min(per, budget - got), rng)
         if r is None:
             continue
-        Xs.append(r[0]); ys.append(r[1]); got += len(r[1])
+        Xs.append(r[0]); ys.append(r[1]); got += len(r[1]); used.add(stem)
     if not Xs:
         return None, None, {}
     return (np.concatenate(Xs), np.concatenate(ys),
-            {"n_frames": len(have), "explicit_negatives": n_explicit, "far_negatives": n_far})
+            {"n_frames_eligible": len(have), "n_frames_used": len(used),
+             "frames": sorted(used),
+             "explicit_negatives": n_explicit, "far_negatives": n_far})
+
+
+def build_test_cached(per_frame=120000, seed=12345):
+    """build_test() is deterministic given its seed but takes about ten minutes,
+    most of it the 170 tiles of the 23.5 MP frame. Cache it so reruns and repeated
+    experiments do not pay for it again."""
+    cf = C.CACHE / f"test_set_p{per_frame}_s{seed}.npz"
+    if cf.exists():
+        z = np.load(cf, allow_pickle=True)
+        stems = [str(x) for x in z["stems"]]
+        out = {s: (z[f"X_{s}"], z[f"y_{s}"]) for s in stems}
+        print(f"test set from cache ({len(out)} frames, "
+              f"{sum(len(v[1]) for v in out.values())} rows)")
+        for s, (_, y) in out.items():
+            print(f"  test {s[:38]:38s} n={len(y):6d} pos={y.mean():.1%}")
+        return out
+    out = build_test(np.random.default_rng(seed), per_frame)
+    if out:
+        d = {"stems": np.array(list(out.keys()))}
+        for k, (X, y) in out.items():
+            d[f"X_{k}"] = X
+            d[f"y_{k}"] = y
+        np.savez(cf, **d)
+        print(f"test set cached -> {cf.name}")
+    return out
 
 
 def build_test(rng, per_frame=120000):
+    """Test rows from the four dense-GT frames, at their NATURAL prevalence.
+
+    Deliberately unlike the training sampler in one way: it does not balance the
+    classes. Prevalence is what makes AUC and IoU mean anything on frames that run
+    18.5-29.7% crack, and the sampled prevalence is checked against the whole-frame
+    value below so a sampling bias cannot pass silently.
+    """
     gt = load_gt()
     out = {}
     for stem, key in TEST_FRAMES.items():
@@ -209,12 +315,63 @@ def build_test(rng, per_frame=120000):
         if g.shape != img01.shape:
             print(f"  SHAPE MISMATCH {stem}: img {img01.shape} vs gt {g.shape}")
             continue
-        n = min(per_frame, img01.size)
-        idx = rng.choice(img01.size, n, replace=False)
-        y, x = np.unravel_index(idx, img01.shape)
-        out[stem] = (feature_rows(img01, y, x), g[y, x].astype(np.int8))
-        print(f"  test {stem[:40]:40s} {img01.shape} pos={out[stem][1].mean():.1%}")
+        h, w = img01.shape
+        padded = reflect_pad(img01)
+        core, tiles = core_tiles(h, w)
+        m = FILTER_MARGIN
+        total_area = sum(t[2] * t[3] for t in tiles)
+        Xs, ys = [], []
+        for (cy, cx, ch, cw) in tiles:
+            # Allocate in proportion to tile area so edge tiles, which are
+            # smaller, are neither over- nor under-weighted.
+            want = int(round(per_frame * (ch * cw) / total_area))
+            if want < 1:
+                continue
+            wnd = padded[cy:cy + ch + 2 * m, cx:cx + cw + 2 * m]
+            st = compute_feature_stack(wnd)
+            flat = st[m:m + ch, m:m + cw, :].reshape(-1, st.shape[-1])
+            lab = g[cy:cy + ch, cx:cx + cw].reshape(-1)
+            k = min(want, len(lab))
+            idx = rng.choice(len(lab), k, replace=False)
+            Xs.append(flat[idx]); ys.append(lab[idx].astype(np.int8))
+        if not Xs:
+            print(f"  {stem}: no usable windows")
+            continue
+        X = np.concatenate(Xs); Y = np.concatenate(ys)
+        out[stem] = (X, Y)
+        truth = float(g.mean())
+        flag = "" if abs(Y.mean() - truth) < 0.03 else "   <-- SAMPLING BIAS"
+        print(f"  test {stem[:38]:38s} n={len(Y):6d} "
+              f"pos={Y.mean():.1%} (whole frame {truth:.1%}){flag}")
     return out
+
+
+def equalise(arms, rng):
+    """Give every arm the same number of positives and the same number of negatives.
+
+    The row budget alone does not achieve this. Arm A draws its whole budget from
+    real TXM and can fall short when an image has no labels of one class -- in the
+    first run A got 43,632 rows against 50,114 for B and C, so B and C had 15% more
+    data than the baseline they were being compared to. Any difference measured
+    that way is partly a difference in dataset size.
+
+    Trimming to the common minimum costs rows but makes the comparison mean what it
+    claims to mean.
+    """
+    if not arms:
+        return arms, {}
+    counts = {k: (int((y == 1).sum()), int((y == 0).sum())) for k, (X, y) in arms.items()}
+    n_pos = min(c[0] for c in counts.values())
+    n_neg = min(c[1] for c in counts.values())
+    out = {}
+    for k, (X, y) in arms.items():
+        pi = np.flatnonzero(y == 1)
+        ni = np.flatnonzero(y == 0)
+        keep = np.concatenate([rng.choice(pi, n_pos, replace=False),
+                               rng.choice(ni, n_neg, replace=False)])
+        rng.shuffle(keep)
+        out[k] = (X[keep], y[keep])
+    return out, {"before": counts, "equalised_to": [n_pos, n_neg]}
 
 
 def fit_eval(Xtr, ytr, test, seed):
@@ -257,7 +414,7 @@ def main():
                                         "optimistic ceiling, applied equally to "
                                         "every arm. AUC is threshold-free.")}}
     print("building test set from the four dense-GT frames ...")
-    test = build_test(np.random.default_rng(12345))
+    test = build_test_cached()
     if not test:
         print("no test frames available; aborting")
         return
@@ -300,6 +457,11 @@ def main():
         if "D" in want and cache.get("sem_t_full", (None,))[0] is not None:
             arms["D_translated_sem_only"] = cache["sem_t_full"]
 
+        arms, eq = equalise(arms, np.random.default_rng(seed + 900))
+        if eq:
+            print(f"  equalised every arm to {eq['equalised_to'][0]} positives + "
+                  f"{eq['equalised_to'][1]} negatives (was {eq['before']})")
+            results["notes"]["equalisation"] = eq
         for name, (X, y) in arms.items():
             per = fit_eval(X, y, test, seed)
             mean_auc = float(np.mean([v["auc"] for v in per.values()]))

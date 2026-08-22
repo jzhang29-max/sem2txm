@@ -74,7 +74,28 @@ class Bank:
 
 
 def edge_corr(a, b):
-    """Correlation of gradient magnitudes -- a cheap structure-retention proxy."""
+    """Correlation of gradient magnitudes between input and output.
+
+    A cheap proxy, and a CONFOUNDED one -- read it as a diagnostic, not a verdict.
+
+    The confound is not the one first assumed. The guess was that TXM carries less
+    high-frequency content than SEM, so shedding fine edges would be correct
+    behaviour. The measured spectra say the opposite: in the four finest bands real
+    TXM holds 0.0188 / 0.0053 / 0.0024 / 0.0019 of its power against SEM's 0.0155 /
+    0.0042 / 0.0014 / 0.0005. TXM is NOISIER at fine scale, not smoother -- X-ray
+    photon noise.
+
+    So the real confound is that matching TXM means ADDING fine-scale noise, and
+    noise is by construction uncorrelated with the input's own fine detail. That
+    pulls a gradient-map correlation down while coarse structure is untouched.
+    Either way the number is ambiguous, but for the opposite reason.
+
+    The unconfounded test of structure retention is crack-contrast retention in
+    eval_translation.py: whether a hand-marked crack is still darker than its own
+    local surroundings after translation. That is scale-free, and it is what label
+    transfer actually depends on. This number is logged because it is nearly free
+    and a collapse to ~0 would be worth catching early.
+    """
     def grad(t):
         gx = t[..., :, 1:] - t[..., :, :-1]
         gy = t[..., 1:, :] - t[..., :-1, :]

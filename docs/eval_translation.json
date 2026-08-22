@@ -1,0 +1,142 @@
+{
+ "ckpt_iter": 1000,
+ "c2st_auc": 0.9937,
+ "c2st_auc_sd": 0.0033,
+ "c2st_top_descriptors": [
+  [
+   "p99",
+   0.8235
+  ],
+  [
+   "p75",
+   0.7666
+  ],
+  [
+   "p50",
+   0.6672
+  ],
+  [
+   "std",
+   0.6646
+  ],
+  [
+   "power_band7",
+   0.6542
+  ]
+ ],
+ "power_spectrum_bands": {
+  "sem_mean": [
+   0.40269,
+   0.35251,
+   0.16784,
+   0.05547,
+   0.01546,
+   0.00419,
+   0.00136,
+   0.00048
+  ],
+  "translated_mean": [
+   0.42471,
+   0.34101,
+   0.15953,
+   0.05556,
+   0.01405,
+   0.00345,
+   0.00101,
+   0.00068
+  ],
+  "txm_mean": [
+   0.4606,
+   0.28487,
+   0.1592,
+   0.06683,
+   0.01883,
+   0.00532,
+   0.0024,
+   0.00194
+  ]
+ },
+ "intensity": {
+  "real_txm": {
+   "median": 0.6706,
+   "iqr": 0.1922,
+   "std": 0.1324
+  },
+  "translated": {
+   "median": 0.6955,
+   "iqr": 0.1312,
+   "std": 0.1014
+  },
+  "sem_source": {
+   "median": 0.6275,
+   "iqr": 0.2824,
+   "std": 0.1896
+  }
+ },
+ "contrast": [
+  {
+   "image": "260622_316_H_b2_back_CBS_01",
+   "n_regions": 9,
+   "sem_mean_contrast": -0.2885,
+   "translated_mean_contrast": -0.1405,
+   "frac_still_darker": 0.8889,
+   "pearson": 0.9888
+  },
+  {
+   "image": "260622_316_H_b2_front_CBS_01",
+   "n_regions": 6,
+   "sem_mean_contrast": -0.05,
+   "translated_mean_contrast": -0.0233,
+   "frac_still_darker": 0.5,
+   "pearson": 0.9954
+  },
+  {
+   "image": "260622_316_H_b2_front_CBS_03",
+   "n_regions": 8,
+   "sem_mean_contrast": -0.0747,
+   "translated_mean_contrast": -0.032,
+   "frac_still_darker": 0.625,
+   "pearson": 0.9577
+  },
+  {
+   "image": "260622_316_H_b2_front_CBS_04",
+   "n_regions": 4,
+   "sem_mean_contrast": 0.1641,
+   "translated_mean_contrast": 0.1114,
+   "frac_still_darker": 0.0,
+   "pearson": 0.5601
+  },
+  {
+   "image": "260708_316_H_b2_front_CBS_001",
+   "n_regions": 10,
+   "sem_mean_contrast": 0.0401,
+   "translated_mean_contrast": 0.0249,
+   "frac_still_darker": 0.3,
+   "pearson": 0.7103
+  },
+  {
+   "image": "260708_316_H_b2_front_CBS_002",
+   "n_regions": 7,
+   "sem_mean_contrast": 0.0039,
+   "translated_mean_contrast": -0.0029,
+   "frac_still_darker": 0.4286,
+   "pearson": 0.995
+  },
+  {
+   "image": "260708_316_H_b2_front_CBS_003",
+   "n_regions": 14,
+   "sem_mean_contrast": -0.0247,
+   "translated_mean_contrast": -0.0183,
+   "frac_still_darker": 0.5714,
+   "pearson": 0.9747
+  },
+  {
+   "image": "260708_316_H_b2_front_CBS_004",
+   "n_regions": 10,
+   "sem_mean_contrast": 0.1691,
+   "translated_mean_contrast": 0.0613,
+   "frac_still_darker": 0.1,
+   "pearson": 0.9892
+  }
+ ]
+}

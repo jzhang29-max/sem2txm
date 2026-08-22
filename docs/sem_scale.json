@@ -1,0 +1,739 @@
+{
+ "assumption": "every drawn scale bar is labelled 100 um; confirmed for 260622_316_H_b2_front_CBS_01, whose panel prints HFW 259 um and whose 2372 px bar gives 100/2372*6144 = 259 um. NOT verified for the other magnifications -- read their panels.",
+ "bar_um_assumed": 100.0,
+ "frames": [
+  {
+   "frame": "260622_316_H_b2_back_CBS_01",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2372,
+   "um_per_px": 0.042159
+  },
+  {
+   "frame": "260622_316_H_b2_front_CBS_01",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2372,
+   "um_per_px": 0.042159
+  },
+  {
+   "frame": "260622_316_H_b2_front_CBS_02",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1778,
+   "um_per_px": 0.056243
+  },
+  {
+   "frame": "260622_316_H_b2_front_CBS_03",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2223,
+   "um_per_px": 0.044984
+  },
+  {
+   "frame": "260622_316_H_b2_front_CBS_04",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1779,
+   "um_per_px": 0.056211
+  },
+  {
+   "frame": "260622_316_H_b4_CBS_01",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2372,
+   "um_per_px": 0.042159
+  },
+  {
+   "frame": "260622_316_H_b4_CBS_02",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1778,
+   "um_per_px": 0.056243
+  },
+  {
+   "frame": "260622_316_amb_b3_CBS_01",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2372,
+   "um_per_px": 0.042159
+  },
+  {
+   "frame": "260622_316_amb_b3_CBS_02",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1778,
+   "um_per_px": 0.056243
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_001",
+   "shape": [
+    2188,
+    3072
+   ],
+   "bar_px": 1186,
+   "um_per_px": 0.084317
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_002",
+   "shape": [
+    2044,
+    3067
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_003",
+   "shape": [
+    2044,
+    3068
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_004",
+   "shape": [
+    2045,
+    3072
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_005",
+   "shape": [
+    4093,
+    6139
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_006",
+   "shape": [
+    2044,
+    3071
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_007",
+   "shape": [
+    2047,
+    3071
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_008",
+   "shape": [
+    2045,
+    3072
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_009",
+   "shape": [
+    2038,
+    3072
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_010",
+   "shape": [
+    2037,
+    3072
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_011",
+   "shape": [
+    2041,
+    3072
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_012",
+   "shape": [
+    2038,
+    3072
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_013",
+   "shape": [
+    2046,
+    3072
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_014",
+   "shape": [
+    2045,
+    3072
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_015",
+   "shape": [
+    4092,
+    6144
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "260708_316_H_b2_front_CBS_016",
+   "shape": [
+    4090,
+    6144
+   ],
+   "bar_px": null,
+   "um_per_px": null
+  },
+  {
+   "frame": "AS_24hr_BSE_Side_008",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1483,
+   "um_per_px": 0.067431
+  },
+  {
+   "frame": "Cast_24hr_SE_Side_006",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1927,
+   "um_per_px": 0.051894
+  },
+  {
+   "frame": "HIP_24hr_SE_Side_006",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1482,
+   "um_per_px": 0.067476
+  },
+  {
+   "frame": "MAR_Amb_AS_CBS_0001",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1483,
+   "um_per_px": 0.067431
+  },
+  {
+   "frame": "MAR_Amb_AS_CBS_0002",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2371,
+   "um_per_px": 0.042176
+  },
+  {
+   "frame": "MAR_Amb_AS_CBS_0003",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1927,
+   "um_per_px": 0.051894
+  },
+  {
+   "frame": "MAR_Amb_AS_CBS_0004",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2372,
+   "um_per_px": 0.042159
+  },
+  {
+   "frame": "MAR_Amb_AS_CBS_0005",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1483,
+   "um_per_px": 0.067431
+  },
+  {
+   "frame": "MAR_Amb_AS_CBS_0006",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2371,
+   "um_per_px": 0.042176
+  },
+  {
+   "frame": "MAR_Amb_AS_ETD_0001",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1483,
+   "um_per_px": 0.067431
+  },
+  {
+   "frame": "MAR_Amb_AS_ETD_0002",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2371,
+   "um_per_px": 0.042176
+  },
+  {
+   "frame": "MAR_Amb_AS_ETD_0003",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1927,
+   "um_per_px": 0.051894
+  },
+  {
+   "frame": "MAR_Amb_AS_ETD_0004",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2372,
+   "um_per_px": 0.042159
+  },
+  {
+   "frame": "MAR_Amb_AS_ETD_0006",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2371,
+   "um_per_px": 0.042176
+  },
+  {
+   "frame": "MAR_Amb_Cast_CBS_0001",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1483,
+   "um_per_px": 0.067431
+  },
+  {
+   "frame": "MAR_Amb_Cast_CBS_0002",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2371,
+   "um_per_px": 0.042176
+  },
+  {
+   "frame": "MAR_Amb_Cast_CBS_0003",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2371,
+   "um_per_px": 0.042176
+  },
+  {
+   "frame": "MAR_Amb_Cast_CBS_0004",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1927,
+   "um_per_px": 0.051894
+  },
+  {
+   "frame": "MAR_Amb_Cast_CBS_0005",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1927,
+   "um_per_px": 0.051894
+  },
+  {
+   "frame": "MAR_Amb_Cast_ETD_0001",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1483,
+   "um_per_px": 0.067431
+  },
+  {
+   "frame": "MAR_Amb_Cast_ETD_0002",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2371,
+   "um_per_px": 0.042176
+  },
+  {
+   "frame": "MAR_Amb_Cast_ETD_0003",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2371,
+   "um_per_px": 0.042176
+  },
+  {
+   "frame": "MAR_Amb_Cast_ETD_0004",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1927,
+   "um_per_px": 0.051894
+  },
+  {
+   "frame": "MAR_Amb_Cast_ETD_0005",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1927,
+   "um_per_px": 0.051894
+  },
+  {
+   "frame": "MAR_Amb_HIP_CBS_0003",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1927,
+   "um_per_px": 0.051894
+  },
+  {
+   "frame": "MAR_Amb_HIP_CBS_0004",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 2371,
+   "um_per_px": 0.042176
+  },
+  {
+   "frame": "MAR_Amb_HIP_CBS_0005",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1482,
+   "um_per_px": 0.067476
+  },
+  {
+   "frame": "MAR_Amb_HIP_CBS_0006",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1483,
+   "um_per_px": 0.067431
+  },
+  {
+   "frame": "MAR_Amb_HIP_CBS_0007",
+   "shape": [
+    2188,
+    3072
+   ],
+   "bar_px": 1185,
+   "um_per_px": 0.084388
+  },
+  {
+   "frame": "MAR_Amb_HIP_CBS_0008",
+   "shape": [
+    2188,
+    3072
+   ],
+   "bar_px": 1111,
+   "um_per_px": 0.090009
+  },
+  {
+   "frame": "MAR_Amb_HIP_CBS_0010",
+   "shape": [
+    2188,
+    3072
+   ],
+   "bar_px": 1037,
+   "um_per_px": 0.096432
+  },
+  {
+   "frame": "MAR_Amb_HIP_ETD_0003",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1927,
+   "um_per_px": 0.051894
+  },
+  {
+   "frame": "MAR_Amb_HIP_ETD_0005",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1482,
+   "um_per_px": 0.067476
+  },
+  {
+   "frame": "MAR_Amb_HIP_ETD_0006",
+   "shape": [
+    4376,
+    6144
+   ],
+   "bar_px": 1483,
+   "um_per_px": 0.067431
+  },
+  {
+   "frame": "MAR_Amb_HIP_ETD_0007",
+   "shape": [
+    2188,
+    3072
+   ],
+   "bar_px": 1186,
+   "um_per_px": 0.084317
+  },
+  {
+   "frame": "MAR_Amb_HIP_ETD_0008",
+   "shape": [
+    2188,
+    3072
+   ],
+   "bar_px": 1112,
+   "um_per_px": 0.089928
+  },
+  {
+   "frame": "MAR_Amb_HIP_ETD_0010",
+   "shape": [
+    2188,
+    3072
+   ],
+   "bar_px": 1038,
+   "um_per_px": 0.096339
+  }
+ ],
+ "settings": [
+  {
+   "bar_px": 1037,
+   "width_px": 3072,
+   "n_frames": 1,
+   "um_per_px": 0.096432,
+   "implied_hfw_um": 296.2,
+   "frames": [
+    "MAR_Amb_HIP_CBS_0010"
+   ]
+  },
+  {
+   "bar_px": 1038,
+   "width_px": 3072,
+   "n_frames": 1,
+   "um_per_px": 0.096339,
+   "implied_hfw_um": 296.0,
+   "frames": [
+    "MAR_Amb_HIP_ETD_0010"
+   ]
+  },
+  {
+   "bar_px": 1111,
+   "width_px": 3072,
+   "n_frames": 1,
+   "um_per_px": 0.090009,
+   "implied_hfw_um": 276.5,
+   "frames": [
+    "MAR_Amb_HIP_CBS_0008"
+   ]
+  },
+  {
+   "bar_px": 1112,
+   "width_px": 3072,
+   "n_frames": 1,
+   "um_per_px": 0.089928,
+   "implied_hfw_um": 276.3,
+   "frames": [
+    "MAR_Amb_HIP_ETD_0008"
+   ]
+  },
+  {
+   "bar_px": 1185,
+   "width_px": 3072,
+   "n_frames": 1,
+   "um_per_px": 0.084388,
+   "implied_hfw_um": 259.2,
+   "frames": [
+    "MAR_Amb_HIP_CBS_0007"
+   ]
+  },
+  {
+   "bar_px": 1186,
+   "width_px": 3072,
+   "n_frames": 2,
+   "um_per_px": 0.084317,
+   "implied_hfw_um": 259.0,
+   "frames": [
+    "260708_316_H_b2_front_CBS_001",
+    "MAR_Amb_HIP_ETD_0007"
+   ]
+  },
+  {
+   "bar_px": 1482,
+   "width_px": 6144,
+   "n_frames": 3,
+   "um_per_px": 0.067476,
+   "implied_hfw_um": 414.6,
+   "frames": [
+    "HIP_24hr_SE_Side_006",
+    "MAR_Amb_HIP_CBS_0005",
+    "MAR_Amb_HIP_ETD_0005"
+   ]
+  },
+  {
+   "bar_px": 1483,
+   "width_px": 6144,
+   "n_frames": 8,
+   "um_per_px": 0.067431,
+   "implied_hfw_um": 414.3,
+   "frames": [
+    "AS_24hr_BSE_Side_008",
+    "MAR_Amb_AS_CBS_0001",
+    "MAR_Amb_AS_CBS_0005",
+    "MAR_Amb_AS_ETD_0001",
+    "MAR_Amb_Cast_CBS_0001",
+    "MAR_Amb_Cast_ETD_0001",
+    "MAR_Amb_HIP_CBS_0006",
+    "MAR_Amb_HIP_ETD_0006"
+   ]
+  },
+  {
+   "bar_px": 1778,
+   "width_px": 6144,
+   "n_frames": 3,
+   "um_per_px": 0.056243,
+   "implied_hfw_um": 345.6,
+   "frames": [
+    "260622_316_H_b2_front_CBS_02",
+    "260622_316_H_b4_CBS_02",
+    "260622_316_amb_b3_CBS_02"
+   ]
+  },
+  {
+   "bar_px": 1779,
+   "width_px": 6144,
+   "n_frames": 1,
+   "um_per_px": 0.056211,
+   "implied_hfw_um": 345.4,
+   "frames": [
+    "260622_316_H_b2_front_CBS_04"
+   ]
+  },
+  {
+   "bar_px": 1927,
+   "width_px": 6144,
+   "n_frames": 9,
+   "um_per_px": 0.051894,
+   "implied_hfw_um": 318.8,
+   "frames": [
+    "Cast_24hr_SE_Side_006",
+    "MAR_Amb_AS_CBS_0003",
+    "MAR_Amb_AS_ETD_0003",
+    "MAR_Amb_Cast_CBS_0004",
+    "MAR_Amb_Cast_CBS_0005",
+    "MAR_Amb_Cast_ETD_0004",
+    "MAR_Amb_Cast_ETD_0005",
+    "MAR_Amb_HIP_CBS_0003",
+    "MAR_Amb_HIP_ETD_0003"
+   ]
+  },
+  {
+   "bar_px": 2223,
+   "width_px": 6144,
+   "n_frames": 1,
+   "um_per_px": 0.044984,
+   "implied_hfw_um": 276.4,
+   "frames": [
+    "260622_316_H_b2_front_CBS_03"
+   ]
+  },
+  {
+   "bar_px": 2371,
+   "width_px": 6144,
+   "n_frames": 9,
+   "um_per_px": 0.042176,
+   "implied_hfw_um": 259.1,
+   "frames": [
+    "MAR_Amb_AS_CBS_0002",
+    "MAR_Amb_AS_CBS_0006",
+    "MAR_Amb_AS_ETD_0002",
+    "MAR_Amb_AS_ETD_0006",
+    "MAR_Amb_Cast_CBS_0002",
+    "MAR_Amb_Cast_CBS_0003",
+    "MAR_Amb_Cast_ETD_0002",
+    "MAR_Amb_Cast_ETD_0003",
+    "MAR_Amb_HIP_CBS_0004"
+   ]
+  },
+  {
+   "bar_px": 2372,
+   "width_px": 6144,
+   "n_frames": 6,
+   "um_per_px": 0.042159,
+   "implied_hfw_um": 259.0,
+   "frames": [
+    "260622_316_H_b2_back_CBS_01",
+    "260622_316_H_b2_front_CBS_01",
+    "260622_316_H_b4_CBS_01",
+    "260622_316_amb_b3_CBS_01",
+    "MAR_Amb_AS_CBS_0004",
+    "MAR_Amb_AS_ETD_0004"
+   ]
+  }
+ ]
+}

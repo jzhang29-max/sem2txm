@@ -237,7 +237,13 @@ def contrast_report(G, dev, rng, max_images=8):
         crack = mk == 1                      # 1 = hand-added crack
         if crack.sum() < 2000:
             continue
-        out = translate(G, img, dev)
+        # Reuse a cached whole-frame translation when one exists -- retranslating a
+        # 25 MP frame to measure it is minutes of work for an identical result.
+        cached = C.CACHE / "translated" / f"{e['stem']}.npy"
+        if cached.exists():
+            out = np.load(cached).astype(np.float32) / 255.0
+        else:
+            out = translate(G, img, dev)
         before = crack_contrast(img, crack, rng=rng)
         after = crack_contrast(out, crack, rng=rng)
         if not before or not after:

@@ -74,11 +74,14 @@ def training_curves(run=None):
                                   ("g_nce", "PatchNCE (content)"), ("g_idt", "identity NCE")]):
         v = np.array([float(r[k]) for r in rows])
         ax.plot(it, v, color=SERIES[i], linewidth=2, label=lab, zorder=3)
-        ax.annotate(lab, (it[-1], v[-1]), xytext=(6, 0), textcoords="offset points",
-                    color=SERIES[i], fontsize=9, va="center")
-    style(ax, "iteration", "loss", "Training losses")
-    ax.set_xlim(it.min(), it.max() * 1.28)
-    leg = ax.legend(frameon=False, fontsize=9, loc="upper right")
+    # Legend only, no end-of-line labels: all four series converge into the same
+    # band below 1, so direct labels sat on top of each other. Log y because the
+    # first 50 iterations fall from 8 to 0.5 and would otherwise flatten every
+    # subsequent difference into one line.
+    ax.set_yscale("log")
+    style(ax, "iteration", "loss  (log scale)", "Training losses")
+    ax.set_xlim(it.min(), it.max())
+    leg = ax.legend(frameon=False, fontsize=9, loc="upper right", ncol=2)
     for t in leg.get_texts():
         t.set_color(INK2)
     save(f, "training_losses.png")
@@ -188,6 +191,58 @@ def label_transfer():
 
 # ------------------------------------------------------------------ contrast
 
+def paired_deltas():
+    """The paired view, which is the informative one.
+
+    In the grouped bar chart the per-arm error bars are seed-to-seed spread, and
+    they overlap heavily -- which reads as "no difference" even where every seed
+    moved the same way. The seeds share a cached test set, so that spread is common
+    to all arms and cancels in a difference. Plot the difference, and plot each
+    seed's own value on top of it, so consistency is visible rather than asserted.
+    """
+    p = C.OUT / "label_transfer.json"
+    if not p.exists():
+        return
+    d = json.loads(p.read_text())
+    arms = {k: v for k, v in d["arms"].items() if isinstance(v, dict) and "runs" in v}
+    base = "A_real_txm_only"
+    if base not in arms:
+        return
+    seeds = [r["seed"] for r in arms[base]["runs"]]
+    bl = {r["seed"]: r["mean_auc"] for r in arms[base]["runs"]}
+    order = ["B_txm_plus_translated_sem", "C_txm_plus_raw_sem", "D_translated_sem_only"]
+    order = [k for k in order if k in arms]
+
+    f = fig(7.4, 3.4)
+    ax = f.add_subplot(111)
+    ax.axvline(0, color=MUTED, linewidth=1.2, zorder=2)
+    for i, k in enumerate(order):
+        runs = {r["seed"]: r["mean_auc"] for r in arms[k]["runs"]}
+        dl = np.array([runs[s] - bl[s] for s in seeds])
+        y = len(order) - 1 - i
+        col = SERIES[(i + 1) % len(SERIES)]
+        ax.barh(y, dl.mean(), height=0.44, color=col, zorder=3,
+                edgecolor=SURFACE, linewidth=2)
+        ax.errorbar(dl.mean(), y, xerr=dl.std(), color=INK2, linewidth=1.4,
+                    capsize=4, zorder=4)
+        ax.scatter(dl, np.full_like(dl, y, dtype=float), s=42, color=INK,
+                   zorder=5, edgecolor=SURFACE, linewidth=1.2)
+        agree = (dl > 0).all() or (dl < 0).all()
+        ax.annotate(f"{dl.mean():+.4f}" + ("  all seeds agree" if agree
+                                           else "  signs disagree"),
+                    (dl.mean(), y), xytext=(0, 16), textcoords="offset points",
+                    ha="center", color=INK, fontsize=9,
+                    fontweight="bold" if agree else "normal")
+    style(ax, "change in pixel AUC vs arm A  (paired, per seed)", "",
+          "Does adding SEM labels help? Paired against the real-TXM baseline")
+    ax.set_yticks(range(len(order)))
+    ax.set_yticklabels([ARM_LABEL.get(k, k) for k in reversed(order)], color=INK2)
+    lim = 0.11
+    ax.set_xlim(-lim, lim)
+    ax.set_ylim(-0.6, len(order) - 0.25)
+    save(f, "paired_deltas.png")
+
+
 def contrast_scatter():
     p = C.OUT / "eval_translation.json"
     if not p.exists():
@@ -223,6 +278,7 @@ def main():
     training_curves()
     spectra()
     label_transfer()
+    paired_deltas()
     contrast_scatter()
 
 
