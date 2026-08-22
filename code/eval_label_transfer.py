@@ -216,6 +216,9 @@ def sem_negative_mask(stem, m, far_px):
     return (m == 2) | far, int((m == 2).sum()), int(far.sum())
 
 
+SEM_MAX_FRAMES = 0   # 0 = use every eligible frame; set to pin the frame set
+
+
 def sem_rows(budget, rng, translated, far_px=50):
     """Rows from the SEM frames that carry a hand-drawn correction mask.
 
@@ -239,6 +242,14 @@ def sem_rows(budget, rng, translated, far_px=50):
                 and (C.CACHE / "sem" / f"{e['stem']}.npy").exists()
                 and (C.CACHE / "translated" / f"{e['stem']}.npy").exists()):
             have.append((e["stem"], mp))
+    # Pinning the frame set makes two runs comparable. Between the iteration-1000
+    # and iteration-5000 runs BOTH the translator and the number of translated
+    # frames changed (17 -> 37), so arm C moved even though it never touches the
+    # translator, and neither change could be attributed. Capping here isolates one
+    # variable at a time. Deterministic: `have` is in sorted stem order, which is
+    # the same order translate.py writes in.
+    if SEM_MAX_FRAMES:
+        have = have[:SEM_MAX_FRAMES]
     rng.shuffle(have)
     per = max(1, budget // max(len(have), 1))
     Xs, ys = [], []
@@ -405,10 +416,16 @@ def main():
     ap.add_argument("--rows", type=int, default=160000, help="row budget per arm")
     ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--arms", default="A,B,C,D")
+    ap.add_argument("--sem-max-frames", type=int, default=0,
+                    help="use only the first N eligible SEM frames, so a rerun can "
+                         "hold the frame set fixed while the translator changes")
     ap.add_argument("--out", default=str(C.OUT / "label_transfer.json"))
     args = ap.parse_args()
 
-    results = {"row_budget": args.rows, "seeds": args.seeds, "arms": {},
+    global SEM_MAX_FRAMES
+    SEM_MAX_FRAMES = args.sem_max_frames
+    results = {"row_budget": args.rows, "seeds": args.seeds,
+               "sem_max_frames": args.sem_max_frames, "arms": {},
                "notes": {"iou_caveat": ("iou_at_best uses the threshold that "
                                         "maximises IoU on the test frames; it is an "
                                         "optimistic ceiling, applied equally to "
