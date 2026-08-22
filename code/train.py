@@ -73,6 +73,29 @@ class Bank:
         return torch.from_numpy(out)
 
 
+def grad_xy(t):
+    """Forward differences, cropped to a common shape."""
+    gx = t[..., :, 1:] - t[..., :, :-1]
+    gy = t[..., 1:, :] - t[..., :-1, :]
+    return gx[..., 1:, :], gy[..., :, 1:]
+
+
+def idt_pixel_stats(idt, real):
+    """Distortion the identity branch actually inflicts, in pixel space.
+
+    Logged every step alongside the losses because the run that produced the 4 px
+    blur equivalent showed a healthy identity-NCE curve the whole way. Whatever is
+    not measured here is not known.
+    """
+    a = idt.detach().flatten(1)
+    b = real.detach().flatten(1)
+    l1 = (a - b).abs().mean().item()
+    am = a - a.mean(1, keepdim=True)
+    bm = b - b.mean(1, keepdim=True)
+    r = ((am * bm).sum(1) / (am.norm(dim=1) * bm.norm(dim=1) + 1e-8)).mean().item()
+    return l1, r
+
+
 def edge_corr(a, b):
     """Correlation of gradient magnitudes between input and output.
 
@@ -118,6 +141,17 @@ def main():
     ap.add_argument("--depth", type=int, default=6)
     ap.add_argument("--window", type=int, default=8)
     ap.add_argument("--lambda-nce", type=float, default=1.0)
+    ap.add_argument("--lambda-idt-l1", type=float, default=0.0,
+                    help="pixel L1 on the identity branch, |G(y)-y|. The NCE "
+                         "identity term operates in feature space and demonstrably "
+                         "does not bound pixel distortion: its loss reached 0.024 "
+                         "while G(y) still lost information equivalent to a 4 px "
+                         "blur on held-out frames.")
+    ap.add_argument("--lambda-idt-hf", type=float, default=0.0,
+                    help="L1 on image GRADIENTS of the identity branch. Aimed at "
+                         "the measured failure specifically -- what G loses is fine "
+                         "detail, and a plain L1 is dominated by low frequencies "
+                         "that were never the problem.")
     ap.add_argument("--lambda-gan", type=float, default=1.0)
     ap.add_argument("--nce-patches", type=int, default=256)
     ap.add_argument("--device", default="auto")
@@ -168,7 +202,9 @@ def main():
     log = open(out / "log.csv", mode, newline="")
     w = csv.writer(log)
     if mode == "w":
-        w.writerow(["iter", "d_loss", "g_gan", "g_nce", "g_idt", "edge_corr", "sec"])
+        w.writerow(["iter", "d_loss", "g_gan", "g_nce", "g_idt", "g_idt_l1",
+                "g_idt_hf", "idt_px_l1", "idt_px_r", "xlate_l1", "edge_corr",
+                "sec"])
 
     t0 = time.time()
     for it in range(start, args.iters + 1):
@@ -224,7 +260,21 @@ def main():
         g_idt = sum(patch_nce_loss(q, k) for q, k in zip(z_ib, z_b)) / len(z_b)
         g_idt = args.lambda_nce * g_idt
 
-        (g_gan + g_nce + g_idt).backward()
+        # Pixel-space identity terms. The target here is the input itself, so
+        # there is no ambiguity for L1 to blur away -- it penalises distortion
+        # directly. The gradient term is separate because a plain L1 over these
+        # images is dominated by the low frequencies, and the measured loss was in
+        # the high ones.
+        g_idt_l1 = torch.zeros((), device=dev)
+        g_idt_hf = torch.zeros((), device=dev)
+        if args.lambda_idt_l1 > 0:
+            g_idt_l1 = args.lambda_idt_l1 * F.l1_loss(idt_b, b)
+        if args.lambda_idt_hf > 0:
+            ix, iy = grad_xy(idt_b)
+            bx, by = grad_xy(b)
+            g_idt_hf = args.lambda_idt_hf * (F.l1_loss(ix, bx) + F.l1_loss(iy, by))
+
+        (g_gan + g_nce + g_idt + g_idt_l1 + g_idt_hf).backward()
         if opt_h is None:
             opt_h = torch.optim.Adam(H.parameters(), lr=args.lr, betas=(0.5, 0.999))
         opt_g.step()
@@ -233,12 +283,22 @@ def main():
 
         if it % args.log_every == 0 or it == 1:
             ec = edge_corr(a.detach(), fake_b.detach())
+            px_l1, px_r = idt_pixel_stats(idt_b, b)
+            # Collapse guard: a pixel identity term pushes G toward the identity
+            # map, and G = identity satisfies it perfectly while translating
+            # nothing. This is how much G moves its SEM input; if it approaches 0
+            # the run has bought fidelity by abandoning the task.
+            xl1 = (fake_b.detach() - a.detach()).abs().mean().item()
             w.writerow([it, f"{d_loss.item():.4f}", f"{g_gan.item():.4f}",
                         f"{g_nce.item():.4f}", f"{g_idt.item():.4f}",
+                        f"{float(g_idt_l1):.4f}", f"{float(g_idt_hf):.4f}",
+                        f"{px_l1:.4f}", f"{px_r:.4f}", f"{xl1:.4f}",
                         f"{ec:.4f}", f"{time.time()-t0:.1f}"])
             log.flush()
             print(f"it {it:6d}  D {d_loss.item():.3f}  Ggan {g_gan.item():.3f}  "
                   f"NCE {g_nce.item():.3f}  idt {g_idt.item():.3f}  "
+                  f"idtL1 {float(g_idt_l1):.3f}  idtHF {float(g_idt_hf):.3f}  "
+                  f"| px_l1 {px_l1:.4f} px_r {px_r:+.3f} xlate {xl1:.4f} | "
                   f"edge_corr {ec:.3f}  {time.time()-t0:.0f}s", flush=True)
 
         if it % args.sample_every == 0 or it == args.iters:
