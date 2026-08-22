@@ -15,6 +15,7 @@ figures/*.png
 !figures/structure_retention.png
 !figures/power_spectrum.png
 !figures/label_transfer.png
+!figures/paired_deltas.png
 !figures/crack_contrast.png
 
 # The databar panels are evidence for the scale recovery, but 51 of them is
