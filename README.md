@@ -313,6 +313,18 @@ pair stays in a stable band -- no mode collapse, no critic runaway.
 - **The scale ratio between modalities is unknown.** SEM is recoverable
   (0.042-0.096 um/px, from the burned-in bar); TXM is not. Translation is at 1:1
   pixels and nothing here has been resampled to a matched physical scale.
+- **The SEM arms used 17 frames, not 39.** Translating a 25 MP frame takes about
+  two minutes, and the machine was shared, so this pass translated 18 of the 39
+  frames that carry a correction mask and the samplers used 17 of them. Arms B, C
+  and D therefore drew on well under half the available hand-drawn SEM labels;
+  arms B and C were restricted to the *same* frames, so the comparison between them
+  is fair, but all three arms are under-fed. `./run apply --masked-only` over the
+  full 39 is the cheapest available improvement.
+- **The SEM negatives are mostly inferred, not marked.** 35,020 pixels were
+  explicitly hand-marked not-crack; 202.6 M qualified as negative by being more
+  than 50 px from anything the reviewer touched. In this dataset an unmarked pixel
+  means "the model's opinion stands", not "not a crack", so distance is doing most
+  of the work of deciding what a negative is.
 - **62 SEM frames and 66 usable TXM mosaics** -- 2.1 gigapixels and 38k patches,
   but only 9 SEM and 5 TXM independent specimen groups. Pixels are plentiful;
   specimens are not.
