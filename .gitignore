@@ -1,0 +1,23 @@
+# Derived, and large. Everything here is reproducible from the two sibling repos
+# by `./run prep`, so none of it belongs in the history.
+cache/
+runs/
+out/
+figures/*.png
+!figures/.gitkeep
+
+# Except the figures the README points at, which are committed so the README
+# renders on GitHub without anyone having to train anything first.
+!figures/preprocessing.png
+!figures/translation_examples.png
+!figures/full_frame.png
+!figures/training_losses.png
+!figures/structure_retention.png
+!figures/power_spectrum.png
+!figures/label_transfer.png
+!figures/crack_contrast.png
+
+__pycache__/
+*.pyc
+.venv/
+.DS_Store

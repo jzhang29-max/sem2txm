@@ -1,0 +1,9 @@
+# Pinned to what this was measured on (Python 3.12, macOS arm64, torch on MPS).
+torch>=2.4
+numpy>=1.26
+scipy>=1.11
+scikit-learn>=1.4
+scikit-image>=0.22
+tifffile>=2024.1.30
+pillow>=10.0
+matplotlib>=3.8

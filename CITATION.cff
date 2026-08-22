@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "sem2txm"
+abstract: >-
+  An unpaired SEM-to-TXM image translator for cracked 316L stainless steel, built to
+  test whether hand-drawn SEM crack labels can be carried across modalities to train a
+  TXM crack detector. A windowed-attention generator is trained with a contrastive
+  content objective so that output structure stays registered to the input. Reads its
+  data from the sem-crack-detector and TXM_Crack_Detection_Pipeline repositories rather
+  than shipping its own copy.
+type: software
+authors:
+  - family-names: Zhang
+    given-names: Jiaming
+    # affiliation and orcid intentionally left blank -- fill these in before citing.
+repository-code: "https://github.com/jzhang29-max/sem2txm"
+license: MIT
+version: "0.1.0"
+keywords:
+  - scanning electron microscopy
+  - transmission X-ray microscopy
+  - unpaired image translation
+  - domain adaptation
+  - crack detection
+  - materials characterisation

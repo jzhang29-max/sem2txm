@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# One entry point for the whole pipeline. Every stage is resumable and skips work
+# it has already done, so re-running after an interruption is safe.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+PY="${PY:-.venv/bin/python3}"
+
+if [ ! -x "$PY" ]; then
+  echo "creating .venv and installing requirements (a few minutes, once) ..."
+  python3 -m venv .venv
+  .venv/bin/python3 -m pip install --quiet --upgrade pip
+  .venv/bin/python3 -m pip install --quiet -r requirements.txt
+fi
+
+stage="${1:-all}"
+
+case "$stage" in
+  prep)     exec "$PY" code/prep.py "${@:2}" ;;
+  train)    exec "$PY" code/train.py "${@:2}" ;;
+  apply)    exec "$PY" code/translate.py "${@:2}" ;;
+  eval)     exec "$PY" code/eval_translation.py "${@:2}" ;;
+  transfer) exec "$PY" code/eval_label_transfer.py "${@:2}" ;;
+  figures)  "$PY" code/make_panels.py; exec "$PY" code/make_figures.py ;;
+  scale)    exec "$PY" code/read_scale.py "${@:2}" ;;
+  groups)   exec "$PY" code/config.py ;;
+  all)
+    "$PY" code/prep.py
+    "$PY" code/train.py
+    "$PY" code/translate.py
+    "$PY" code/eval_translation.py
+    "$PY" code/eval_label_transfer.py
+    "$PY" code/make_panels.py
+    "$PY" code/make_figures.py
+    ;;
+  *)
+    cat <<'USAGE'
+usage: ./run [stage] [args...]
+
+  prep       cache both modalities in one domain, cut the patch banks
+  train      train the SEM -> TXM translator
+  apply      translate whole SEM frames
+  eval       appearance + geometry measurements
+  transfer   the label-transfer experiment (arms A/B/C/D)
+  figures    regenerate every figure the README points at
+  scale      recover SEM um/px from the burned-in scale bar
+  groups     print the specimen grouping used for train/test splits
+  all        every stage in order (default)
+
+Data comes from two sibling repositories, expected next to this one:
+  ../sem-crack-detector
+  ../TXM_Crack_Detection_Pipeline
+Override with SEM2TXM_SEM_REPO / SEM2TXM_TXM_REPO.
+USAGE
+    exit 2 ;;
+esac
