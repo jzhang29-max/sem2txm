@@ -272,6 +272,58 @@ M4 Max; this run averaged worse because the host was shared. Both contrastive te
 fall steadily and the adversarial pair stays in a stable band -- no mode collapse,
 no critic runaway. The training dynamics are not the problem.
 
+## What would actually improve this
+
+Ordered by measured evidence, not by novelty.
+
+**1. The TXM pixel size.** Not a model change -- a number. Training runs at 1:1
+pixels because the SEM:TXM ratio is unknown, so the generator may be matching a
+259 um SEM field against a 550 um TXM field. If so, nothing above means anything
+and no architecture fixes it. SEM is recovered (`./run scale`, 0.042-0.096 um/px);
+TXM needs a beamline log, an unconverted `.xrm`, or the objective and binning.
+
+**2. Registered pairs, for evaluation before training.** Every metric in this repo
+is a proxy -- plausibility (two-sample test) and structure retention (contrast
+correlation). None asks whether a prediction is *right*, because there is no
+registered truth. `code/eval_paired.py` makes that measurement the moment a
+registration exists, and reports it against two baselines -- the raw SEM, and a
+blurred SEM -- because the translator has earned nothing until it beats doing
+nothing.
+
+Registration was attempted on existing data and **failed**: SEM
+`260622_316_H_b2_front_CBS_01` against the b2 TXM frames scores NMI 1.0005-1.006
+at every scale tried, against a measured independence floor of 1.004 and with
+margins of 0.0008. Same specimen is not the same field of view. `code/register.py`
+searches scale and rotation, refuses anything below NMI 1.01, and writes a
+checkerboard overlay, because a template match always returns something.
+
+**3. Not more scraped data.** The measured bottleneck is not volume: 2.1
+gigapixels, 38k patches. It is that appearance quality and label transferability
+move in *opposite* directions (section 2), which more images of other materials
+cannot fix -- and TXM images of other specimens would make the critic's target
+less specific to 316L, plausibly worse. Two openly-licensed sets were found and
+are worth having for other purposes, not this one:
+[Zenodo 15510590](https://zenodo.org/records/15510590) (CC-BY, 434 MB, SEM
+fractography of steels under pressurised hydrogen -- close to this specimen set,
+but fracture surfaces rather than side-surface fatigue cracks) and
+[Zenodo 4822516](https://zenodo.org/records/4822516) (Zeiss TXRM/TXM micro-CT,
+different materials).
+
+**4. A paired loss, only once the residual is known.** [TXM2SEM](https://github.com/suetri-a/TXM2SEM)
+is the right reference for the paired regime -- L1 regression at its core, pix2pix
+and SRGAN variants around it -- but its pairs are registered for free, because
+FIB-SEM mills the same volume the TXM imaged. Surface SEM against a projection
+radiograph has no such guarantee. If the registration residual is a few pixels,
+pixel L1 is viable; if it is tens, L1 will actively teach blur and a
+registration-tolerant objective (contextual or patch-correlation) is the right
+choice. Measure first.
+
+**5. More test specimens, before more model.** The four dense TXM frames are all
+b2. With a baseline seed spread of ±0.0229 AUC, this evaluation cannot resolve
+anything below about ±0.05, which is larger than any effect it measured. Dense
+ground truth on a second specimen would do more for confidence than any
+architecture change here.
+
 ## Limits
 
 - **It does not see under the surface.** The single most likely misreading. This
