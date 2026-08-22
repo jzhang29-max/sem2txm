@@ -86,12 +86,23 @@ def training_curves(run=None):
     f = fig(7.2, 3.2)
     ax = f.add_subplot(111)
     ec = np.array([float(r["edge_corr"]) for r in rows])
-    ax.plot(it, ec, color=SERIES[0], linewidth=2, zorder=3)
-    ax.annotate(f"{ec[-1]:.3f}", (it[-1], ec[-1]), xytext=(6, 0),
+    # Each point is one batch of 8 patches, so it is noisy: a single low reading
+    # is not a trend. Both are shown -- faint raw, bold rolling mean -- so the
+    # eye reads the trend without the raw scatter being hidden.
+    k = max(3, min(9, len(ec) // 8))
+    if len(ec) >= k:
+        sm = np.convolve(ec, np.ones(k) / k, mode="valid")
+        sm_it = it[k - 1:]
+    else:
+        sm, sm_it = ec, it
+    ax.plot(it, ec, color=SERIES[0], linewidth=1, alpha=0.32, zorder=2)
+    ax.plot(sm_it, sm, color=SERIES[0], linewidth=2.2, zorder=3)
+    ax.annotate(f"{sm[-1]:.3f}", (sm_it[-1], sm[-1]), xytext=(6, 0),
                 textcoords="offset points", color=SERIES[0], fontsize=10,
                 va="center", fontweight="bold")
     style(ax, "iteration", "edge-map correlation",
-          "Structure retention: input edges vs output edges")
+          f"Structure retention: input edges vs output edges "
+          f"(bold = {k}-point rolling mean)")
     ax.set_xlim(it.min(), it.max() * 1.12)
     ax.set_ylim(0, max(1.0, float(ec.max()) * 1.1))
     save(f, "structure_retention.png")

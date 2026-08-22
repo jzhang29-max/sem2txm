@@ -29,6 +29,13 @@ from model import Generator, PatchDiscriminator, ProjectionHead, patch_nce_loss
 NCE_LAYERS = (0, 1, 2, 4, 6)
 
 
+def _tap_channels(ch, depth):
+    """Channel count at each NCE tap, in NCE_LAYERS order -- needed to build the
+    projection heads before loading their weights on resume."""
+    per = {0: ch, 1: ch * 2, 2: ch * 4}
+    return [per.get(l, ch * 4) for l in NCE_LAYERS]
+
+
 def device_of(name):
     if name != "auto":
         return torch.device(name)
@@ -95,6 +102,7 @@ def main():
     ap.add_argument("--device", default="auto")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default=str(C.ROOT / "runs" / "cut"))
+    ap.add_argument("--resume", default="", help="checkpoint to continue from")
     ap.add_argument("--log-every", type=int, default=50)
     ap.add_argument("--sample-every", type=int, default=1000)
     ap.add_argument("--save-every", type=int, default=2000)
@@ -121,12 +129,28 @@ def main():
     opt_d = torch.optim.Adam(D.parameters(), lr=args.lr, betas=(0.5, 0.999))
     opt_h = None                      # built after the heads exist (lazy channels)
 
-    log = open(out / "log.csv", "w", newline="")
+    # Resume exists because this machine sleeps when idle: a run that logged
+    # 1.57 s/iter for 250 iterations then showed 197 s/iter was not throttling,
+    # it was the host suspending with the wall clock still running. Checkpoints
+    # are frequent and continuing is cheaper than restarting.
+    start = 1
+    if args.resume:
+        ck = torch.load(args.resume, map_location=dev, weights_only=False)
+        G.load_state_dict(ck["G"]); D.load_state_dict(ck["D"])
+        H(  [torch.zeros(1, c, 8, 8, device=dev)
+             for c in _tap_channels(args.ch, args.depth)] )   # build lazy heads
+        H.load_state_dict(ck["H"])
+        start = int(ck["iter"]) + 1
+        print(f"resumed from {args.resume} at iter {ck['iter']}")
+
+    mode = "a" if (args.resume and (out / "log.csv").exists()) else "w"
+    log = open(out / "log.csv", mode, newline="")
     w = csv.writer(log)
-    w.writerow(["iter", "d_loss", "g_gan", "g_nce", "g_idt", "edge_corr", "sec"])
+    if mode == "w":
+        w.writerow(["iter", "d_loss", "g_gan", "g_nce", "g_idt", "edge_corr", "sec"])
 
     t0 = time.time()
-    for it in range(1, args.iters + 1):
+    for it in range(start, args.iters + 1):
         # Linear lr decay over the final third.
         if it > args.iters * 2 // 3:
             frac = 1.0 - (it - args.iters * 2 // 3) / (args.iters / 3 + 1e-9)

@@ -189,6 +189,15 @@ class Generator(nn.Module):
         h = self.up1(h)
         h = self.up2(h)
         out = self.head(h)
+        # Two stride-2 downsamples round the spatial size up to a multiple of 4,
+        # so an input of 250 comes back as 252. Harmless for tiled inference (tiles
+        # are a power of two) but a silent 2 px shift would misregister a
+        # transferred mask, which is the one thing here that must not happen.
+        if out.shape[-2:] != x.shape[-2:]:
+            out = out[..., :x.shape[-2], :x.shape[-1]]
+            if out.shape[-2:] != x.shape[-2:]:
+                out = F.pad(out, (0, x.shape[-1] - out.shape[-1],
+                                  0, x.shape[-2] - out.shape[-2]), mode="replicate")
         return (out, feats) if layers else out
 
     def encode(self, x, layers):

@@ -62,17 +62,45 @@ def translate(G, img01, device, tile=256, overlap=64, batch=8):
     return np.clip(out[:h, :w], 0, 1)
 
 
+def write_pair_png(path, src, out, scale=4):
+    """SEM input beside its translation, downsampled so a 27 MP frame is viewable."""
+    from PIL import Image
+    def ds(a):
+        im = Image.fromarray((np.clip(a, 0, 1) * 255).astype(np.uint8))
+        if scale > 1:
+            im = im.resize((max(1, im.width // scale), max(1, im.height // scale)),
+                           Image.LANCZOS)
+        return np.array(im)
+    a, b = ds(src), ds(out)
+    gap = 8
+    sheet = np.full((a.shape[0], a.shape[1] + gap + b.shape[1]), 255, np.uint8)
+    sheet[:, :a.shape[1]] = a
+    sheet[:, a.shape[1] + gap:] = b
+    Image.fromarray(sheet).save(path)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ckpt", default=str(C.ROOT / "runs" / "cut" / "ckpt.pt"))
     ap.add_argument("--images", nargs="*", help="SEM stems (default: all cached)")
     ap.add_argument("--out", default=str(C.CACHE / "translated"))
-    ap.add_argument("--tile", type=int, default=256)
-    ap.add_argument("--overlap", type=int, default=64)
+    ap.add_argument("--tile", type=int, default=512,
+                    help="inference tile; larger is fewer, bigger GPU ops for the "
+                         "same pixels. Training used 256 but the generator is "
+                         "size-agnostic (conv + windowed attention pads to the "
+                         "window).")
+    ap.add_argument("--overlap", type=int, default=128)
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--masked-only", action="store_true",
+                    help="only frames that carry a hand-drawn correction mask -- "
+                         "the 39 the label-transfer experiment can actually use")
+    ap.add_argument("--png", action="store_true",
+                    help="also write a viewable side-by-side PNG per frame")
+    ap.add_argument("--png-scale", type=int, default=4,
+                    help="downsample factor for the PNG (originals are up to 27 MP)")
     args = ap.parse_args()
 
     from train import device_of
@@ -82,7 +110,12 @@ def main():
 
     outdir = Path(args.out)
     outdir.mkdir(parents=True, exist_ok=True)
-    stems = args.images or [p.stem for p in sorted((C.CACHE / "sem").glob("*.npy"))]
+    stems = args.images or [p.stem for p in sorted((C.CACHE / "sem").glob("*.npy"))
+                            if not p.name.endswith(".box.npy")]
+    if args.masked_only:
+        stems = [s for s in stems
+                 if (C.SEM_MASK_DIR / f"{s}_correction_mask.png").exists()]
+        print(f"{len(stems)} frames carry a correction mask")
     if args.limit:
         stems = stems[:args.limit]
     for i, stem in enumerate(stems):
@@ -93,6 +126,8 @@ def main():
         img01 = np.load(src).astype(np.float32) / 255.0
         o = translate(G, img01, dev, args.tile, args.overlap, args.batch)
         np.save(outdir / f"{stem}.npy", (o * 255).astype(np.uint8))
+        if args.png:
+            write_pair_png(outdir / f"{stem}.png", img01, o, args.png_scale)
         print(f"  [{i+1}/{len(stems)}] {stem[:52]} {img01.shape} "
               f"-> median {np.median(o):.3f}", flush=True)
     print(f"translated -> {outdir}")

@@ -55,20 +55,69 @@ def feature_rows(img01, ys, xs):
     return st[ys, xs, :]
 
 
-def sample_from(img01, pos_mask, neg_mask, n, rng):
-    pos = np.flatnonzero(pos_mask.ravel())
-    neg = np.flatnonzero(neg_mask.ravel())
-    if len(pos) == 0 or len(neg) == 0:
+# Margin inside a window within which a pixel's features are indistinguishable
+# from its whole-frame features.
+#
+# Set by measurement, not by eyeballing the filter list. The first guess was 32 px
+# -- reasoning from GRADIENT/LAPLACIAN_SIGMAS, which stop at 8 -- and it left a
+# max error of 1.8e-2 in three channels. Those channels are smooth_s16/32/64:
+# SMOOTH_SIGMAS runs to 64, and a Gaussian needs ~3 sigma to die out.
+#
+# At 192 px the same comparison leaves 1.5e-4, in smooth_s64 alone -- not exact,
+# but two orders of magnitude down and immaterial to a tree ensemble on features
+# in [0,1]. Window must exceed 2 * margin to leave any interior, hence 768, which
+# also runs 4.5x faster per usable pixel than a whole-frame pass on a 2.9 MP
+# mosaic and far better than that on the 23 MP one.
+FILTER_MARGIN = 192
+WINDOW = 768
+
+
+def sample_windows(img01, pos_mask, neg_mask, n, rng, win=WINDOW, max_windows=400):
+    """Rows from random windows rather than from a whole-frame feature stack.
+
+    Computing compute_feature_stack() on a full mosaic is ~18 Gaussian passes over
+    up to 23 megapixels, and the experiment needs it once per image PER SEED --
+    hundreds of full-frame passes. Windows give identical features for any pixel
+    at least FILTER_MARGIN inside the window (the filters are local), at a small
+    fraction of the cost. Pixels in the margin are discarded rather than used with
+    edge-contaminated context.
+    """
+    h, w = img01.shape
+    win = min(win, h, w)
+    inner = win - 2 * FILTER_MARGIN
+    if inner <= 0:
         return None
-    npos = min(len(pos), n // 2)
-    nneg = min(len(neg), n - npos)
-    pi = rng.choice(pos, npos, replace=False)
-    ni = rng.choice(neg, nneg, replace=False)
-    idx = np.concatenate([pi, ni])
-    y, x = np.unravel_index(idx, img01.shape)
-    X = feature_rows(img01, y, x)
-    yy = np.concatenate([np.ones(npos, np.int8), np.zeros(nneg, np.int8)])
-    return X, yy
+    Xs, yl = [], []
+    got_pos = got_neg = 0
+    want_pos = n // 2
+    want_neg = n - want_pos
+    for _ in range(max_windows):
+        if got_pos >= want_pos and got_neg >= want_neg:
+            break
+        y0 = int(rng.integers(0, h - win + 1))
+        x0 = int(rng.integers(0, w - win + 1))
+        sl = (slice(y0, y0 + win), slice(x0, x0 + win))
+        pm = pos_mask[sl][FILTER_MARGIN:-FILTER_MARGIN, FILTER_MARGIN:-FILTER_MARGIN]
+        nm = neg_mask[sl][FILTER_MARGIN:-FILTER_MARGIN, FILTER_MARGIN:-FILTER_MARGIN]
+        if not pm.any() and not nm.any():
+            continue
+        st = compute_feature_stack(np.asarray(img01[sl], np.float32))
+        core = st[FILTER_MARGIN:-FILTER_MARGIN, FILTER_MARGIN:-FILTER_MARGIN, :]
+        for mask, want, got, lab in ((pm, want_pos, got_pos, 1), (nm, want_neg, got_neg, 0)):
+            need = want - got
+            if need <= 0 or not mask.any():
+                continue
+            idx = np.flatnonzero(mask.ravel())
+            take = idx if len(idx) <= need else rng.choice(idx, need, replace=False)
+            Xs.append(core.reshape(-1, core.shape[-1])[take])
+            yl.append(np.full(len(take), lab, np.int8))
+            if lab == 1:
+                got_pos += len(take)
+            else:
+                got_neg += len(take)
+    if not Xs:
+        return None
+    return np.concatenate(Xs), np.concatenate(yl)
 
 
 def txm_rows(budget, rng, exclude_stems):
@@ -169,6 +218,11 @@ def build_test(rng, per_frame=120000):
 
 
 def fit_eval(Xtr, ytr, test, seed):
+    """AUC is the headline because it needs no threshold. IoU is reported at the
+    threshold that maximises it ON THE TEST FRAMES, which is an optimistic ceiling
+    rather than a deployable number -- every arm gets the same favour, so the
+    comparison between arms is still fair, but the absolute value is not
+    comparable to a deployed model's IoU."""
     from sklearn.ensemble import HistGradientBoostingClassifier
     from sklearn.metrics import roc_auc_score
     clf = HistGradientBoostingClassifier(max_iter=300, learning_rate=0.1,
@@ -197,7 +251,11 @@ def main():
     ap.add_argument("--out", default=str(C.OUT / "label_transfer.json"))
     args = ap.parse_args()
 
-    results = {"row_budget": args.rows, "seeds": args.seeds, "arms": {}, "notes": {}}
+    results = {"row_budget": args.rows, "seeds": args.seeds, "arms": {},
+               "notes": {"iou_caveat": ("iou_at_best uses the threshold that "
+                                        "maximises IoU on the test frames; it is an "
+                                        "optimistic ceiling, applied equally to "
+                                        "every arm. AUC is threshold-free.")}}
     print("building test set from the four dense-GT frames ...")
     test = build_test(np.random.default_rng(12345))
     if not test:
@@ -250,9 +308,12 @@ def main():
                 {"seed": seed, "n_rows": int(len(y)), "pos_frac": round(float(y.mean()), 3),
                  "mean_auc": round(mean_auc, 4), "mean_iou": round(mean_iou, 4),
                  "per_frame": per})
-            print(f"  {name:32s} n={len(y):7d} AUC {mean_auc:.4f}  IoU {mean_iou:.4f}")
+            print(f"  {name:32s} n={len(y):7d} AUC {mean_auc:.4f}  "
+                  f"IoU* {mean_iou:.4f}")
 
     print("\n================ summary (mean over seeds) ================")
+    print("  AUC is threshold-free. IoU* is at the best threshold on the test")
+    print("  frames -- an optimistic ceiling, equal favour to every arm.")
     for name, runs in results["arms"].items():
         a = np.array([r["mean_auc"] for r in runs])
         i = np.array([r["mean_iou"] for r in runs])
