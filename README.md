@@ -564,6 +564,75 @@ pixel size (scale 1.0020), but that was one pair -- the `ZOOM` and `LARGE` namin
 suggests several magnifications exist, so use `txm_um_per_px_by_frame` if the frames
 you send were taken at different settings.
 
+## 11. Measured against real registered pairs: the translation loses to doing nothing
+
+Two pairs arrived (`B2`, `B3` -- one SEM and one TXM each), and they changed what can
+be measured. Crucially the SEM files were **originals off the instrument**, still
+carrying their `FEI_HELIOS` tag, unlike the repo copies that `tifffile` had stripped.
+So the SEM scale is now exact rather than inferred:
+
+| frame | metadata um/px | scale-bar estimate | agreement |
+|---|---|---|---|
+| `260708_316_H_b2_front_CBS_002` | 0.103766 (HFW 318.8 um) | 0.103842 | 0.07% |
+| `260622_316_amb_b3_CBS_01` | 0.042155 (HFW 259.0 um) | 0.042159 | 0.01% |
+
+That closes the caveat this README has carried since the scale section: the bars
+really are 100 um (they measure 99.9 and 100.0 at the true scale), verified at two
+different magnifications. `read_scale.py` now reads the tag when present and falls
+back to the bar.
+
+**Both pairs register.** The checkerboard overlays show the same crack, same shape,
+continuing across tile boundaries -- the first confirmed SEM-to-TXM correspondence
+in this project.
+
+**And the fidelity result is unambiguous.** Prediction against the real TXM it
+landed on, beside the two baselines that make the number mean anything:
+
+| pair | | SSIM | pearson | NMI |
+|---|---|---|---|---|
+| B2 | predicted TXM | 0.0888 | **−0.0654** | 1.0075 |
+| | input SEM (do nothing) | 0.3345 | +0.3940 | 1.0132 |
+| | blurred SEM | 0.3955 | **+0.4108** | **1.0154** |
+| B3 | predicted TXM | 0.2055 | +0.3256 | 1.0195 |
+| | input SEM (do nothing) | 0.3659 | +0.4519 | 1.0234 |
+| | blurred SEM | 0.5188 | **+0.4764** | **1.0245** |
+
+On both pairs, on every metric, **the translated image is a worse predictor of the
+real TXM than the raw SEM is** -- and worse than a Gaussian blur of the raw SEM.
+On B2 the raw SEM correlates +0.394 with the truth while the prediction correlates
+−0.065: the translation destroys a real correspondence that was present in its own
+input.
+
+This is the measurement the whole repo was missing, it is now made against
+registered ground truth, and it is negative. If the goal is to predict what the TXM
+looks like, handing back the SEM (or a blurred SEM) does it better than this
+translator.
+
+### The scale ratio is still not pinned, and two methods failed to pin it
+
+With the SEM scale exact, a registration should *derive* the TXM scale. It does not,
+because neither similarity measure is sharp enough in scale:
+
+- **Mutual information is flat.** On B3, NMI runs 1.0245-1.0269 across ratios 1.9 to
+  2.9. Peak-picking on that is noise. B2 peaked at 2.7 (implying 0.280 um/px), B3 at
+  1.9 (0.080 um/px) -- inconsistent, and both inside their own spread.
+- **Crack-mask overlap is too weak.** Aligning the segmented cracks tops out at Dice
+  0.108 with a 0.036 spread, because the segmentation does not find the same object
+  in both modalities (0.37% of the SEM against 1.04% of the TXM). `register_crack.py`
+  refuses rather than quoting a ratio from it.
+
+What the pairs do give is a **bound**: the visually plausible matches sit between
+ratio ~1.4 and ~4, i.e. TXM somewhere in **0.15-0.42 um/px** for B2. Getting the
+actual number still requires the beamline log, an unconverted `.xrm`, or the
+objective and binning.
+
+Two matcher bugs were found and fixed getting here, both of which had produced a
+confident wrong answer first. A template match inflates as the template shrinks, so
+the first run picked ratio 16 (NMI 1.046, NCC 0.77) with a 192 px template landing in
+the mosaic's **no-data padding** at the frame edge. `register.py` now requires a
+template at least 20% of the frame and rejects candidate windows that are more than
+5% padding.
+
 ## What would actually improve this
 
 Ordered by measured evidence, not by novelty.

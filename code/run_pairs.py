@@ -40,16 +40,24 @@ def load_and_prep(path, kind):
 
 
 def sem_um_per_px(path):
-    """SEM scale from the burned-in bar, if the panel survived."""
+    """SEM scale: instrument metadata first, burned-in bar as fallback.
+
+    Metadata is exact and carries no assumption; the bar assumes 100 um, which was
+    verified against metadata to 0.07% on two frames at different magnifications.
+    Returns (um_per_px, source, detail).
+    """
+    from read_scale import from_metadata, databar, measure_bar
+    um, hfw = from_metadata(path)
+    if um:
+        return um, "metadata", f"HFW {hfw:.1f} um" if hfw else ""
     try:
-        from read_scale import databar, measure_bar
         bar, top, shape = databar(path)
         L, _ = measure_bar(bar)
         if L:
-            return 100.0 / L, L, shape[1]     # assumes a 100 um bar; see docs/DATA.md
+            return 100.0 / L, "scale bar", f"bar {L} px of {shape[1]}"
     except Exception:
         pass
-    return None, None, None
+    return None, None, ""
 
 
 def main():
@@ -103,11 +111,10 @@ def main():
         print(f"    SEM {sem.shape}   TXM {txm.shape}")
 
         # scale, if it can be established
-        s_um, bar_px, wpx = sem_um_per_px(sp)
+        s_um, src, detail = sem_um_per_px(sp)
         t_um = by_frame.get(tp.name, txm_scale)
         if s_um:
-            print(f"    SEM scale from its bar: {s_um:.5f} um/px "
-                  f"(bar {bar_px} px across {wpx})")
+            print(f"    SEM scale ({src}): {s_um:.6f} um/px  {detail}")
         if s_um and t_um:
             print(f"    TXM scale given: {t_um} um/px  ->  expected pixel ratio "
                   f"{t_um / s_um:.2f}  (SEM must be downsampled by this)")
@@ -126,7 +133,14 @@ def main():
 
         rec = {"name": name, "sem": str(sp), "txm": str(tp), "coarse": coarse,
                "refined": refined, "advice": advice,
-               "sem_um_per_px": s_um, "txm_um_per_px": t_um}
+               "sem_um_per_px": s_um, "sem_scale_source": src, "txm_um_per_px": t_um}
+        # With the SEM scale known exactly, a registration DERIVES the TXM scale:
+        # the fitted ratio is how many SEM pixels make one TXM pixel.
+        if s_um and refined.get("ok"):
+            r_eff = coarse["ratio"] / max(refined.get("scale", 1.0), 1e-9)
+            rec["txm_um_per_px_derived"] = round(r_eff * s_um, 6)
+            print(f"    ==> TXM scale DERIVED from this registration: "
+                  f"{r_eff * s_um:.4f} um/px  (ratio {r_eff:.3f} x SEM)")
 
         if coarse["nmi"] >= NMI_FLOOR:
             ov = outdir / f"{name}_overlay.png"

@@ -28,6 +28,33 @@ sys.path.insert(0, str(C.SEM_REPO / "code"))
 from detect_cracks import _detect_databar_top  # noqa: E402
 
 
+def from_metadata(path):
+    """Exact SEM pixel size from the FEI/Thermo tag, when the file still has it.
+
+    The repo copies were rewritten by tifffile and lost this, which is why the
+    burned-in bar had to be measured at all. Originals straight off the Apreo do
+    carry it, and it is exact -- no 100 um assumption. Returns (um_per_px, hfw_um)
+    or (None, None).
+
+    Cross-checked against the bar on two frames at different magnifications:
+    metadata 0.103766 vs bar 0.103842 um/px (0.07% apart), and metadata 0.042155 vs
+    bar 0.042159 (0.01%). So the bar method is sound where metadata is absent, and
+    the bars really are 100 um.
+    """
+    import tifffile
+    try:
+        with tifffile.TiffFile(str(path)) as t:
+            tags = t.pages[0].tags
+            if "FEI_HELIOS" not in tags:
+                return None, None
+            md = tags["FEI_HELIOS"].value
+            um = float(md["Scan"]["PixelWidth"]) * 1e6
+            hfw = float(md.get("EBeam", {}).get("HFW", 0.0)) * 1e6 or None
+            return um, hfw
+    except Exception:
+        return None, None
+
+
 def databar(path):
     raw = tifffile.imread(str(path))
     if raw.ndim == 3:

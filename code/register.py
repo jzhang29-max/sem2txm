@@ -52,7 +52,16 @@ def nmi(a, b, bins=48):
     return float((hx + hy) / hxy)
 
 
-def best_match(sem01, txm01, ratio, angle=0.0, top_k=5):
+# A template match inflates as the template shrinks: fewer pixels, more places that
+# fit by chance. Measured on a real pair -- B2 at ratio 16 downsamples a 3072 px SEM
+# to a 192 px template and returns NMI 1.046 / NCC 0.77, which looked like the best
+# match in the whole sweep and was landing in the mosaic's no-data padding at the
+# frame edge. Both guards below exist because of that case.
+MIN_TEMPLATE_FRAC = 0.20     # of the search image's smaller side
+MAX_NODATA_FRAC = 0.05       # a window that is mostly padding is not a match
+
+
+def best_match(sem01, txm01, ratio, angle=0.0, top_k=12):
     """Downsample SEM by `ratio` (and rotate by `angle`) to TXM pixel size, then
     locate it in the TXM.
 
@@ -71,8 +80,8 @@ def best_match(sem01, txm01, ratio, angle=0.0, top_k=5):
             t = t[cut:-cut, cut:-cut]
     if t.shape[0] >= txm01.shape[0] or t.shape[1] >= txm01.shape[1]:
         return None
-    if min(t.shape) < 32:
-        return None
+    if min(t.shape) < max(64, MIN_TEMPLATE_FRAC * min(txm01.shape)):
+        return None                      # too small to be evidence of anything
     ts, xs = structure(t), structure(txm01)
     corr = match_template(xs, ts, pad_input=False)
     flat = np.argsort(corr.ravel())[::-1][:top_k]
@@ -81,6 +90,10 @@ def best_match(sem01, txm01, ratio, angle=0.0, top_k=5):
         y, x = np.unravel_index(idx, corr.shape)
         win = txm01[y:y + t.shape[0], x:x + t.shape[1]]
         if win.shape != t.shape:
+            continue
+        # TXM mosaics pad outside the tile grid with ~zero. A window that is mostly
+        # padding correlates with anything smooth and is not a registration.
+        if (win <= 1e-6).mean() > MAX_NODATA_FRAC:
             continue
         score = nmi(t, win)
         if best is None or score > best[0]:
@@ -112,6 +125,10 @@ def register(sem_stem, txm_stem, ratios, angles=(0.0,), verbose=True):
             if verbose:
                 print(f"    ratio {r:5.2f}  angle {a:+5.1f}  NMI {m[0]:.4f}  "
                       f"NCC {m[3]:+.3f}  template {m[2]} at {m[1]}")
+        if not any(rr["ratio"] == r for rr in rows) and verbose:
+            print(f"    ratio {r:5.2f}  rejected: template under "
+                  f"{MIN_TEMPLATE_FRAC:.0%} of the frame, or every candidate window "
+                  f"was mostly no-data")
     if not rows:
         return None
     rows.sort(key=lambda d: -d["nmi"])
