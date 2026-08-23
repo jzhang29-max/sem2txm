@@ -204,6 +204,8 @@ def main():
                          "13% of the critic's input changes under a remap with "
                          "'none', 0.01% with 'highpass').")
     ap.add_argument("--critic-sigma", type=float, default=4.0)
+    ap.add_argument("--bank-suffix", default="",
+                    help="use bank_sem<suffix>.npy / bank_txm<suffix>.npy")
     ap.add_argument("--nce-patches", type=int, default=256)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--seed", type=int, default=0)
@@ -221,8 +223,8 @@ def main():
     (out / "samples").mkdir(parents=True, exist_ok=True)
     (out / "config.json").write_text(json.dumps(vars(args) | {"device": str(dev)}, indent=1))
 
-    sem = Bank(C.CACHE / "bank_sem.npy", rng)
-    txm = Bank(C.CACHE / "bank_txm.npy", rng)
+    sem = Bank(C.CACHE / f"bank_sem{args.bank_suffix}.npy", rng)
+    txm = Bank(C.CACHE / f"bank_txm{args.bank_suffix}.npy", rng)
     print(f"device={dev}  SEM patches={len(sem)}  TXM patches={len(txm)}")
 
     G = Generator(args.ch, args.depth, args.window).to(dev)

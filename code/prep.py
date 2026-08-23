@@ -165,7 +165,8 @@ def check_mask_alignment(manifest):
     print(f"mask alignment: {ok} match, {bad} mismatch, {missing} without a mask")
 
 
-def cut_bank(domain, entries, per_image, patch, seed, exclude_reference=True):
+def cut_bank(domain, entries, per_image, patch, seed, exclude_reference=True,
+             downsample=1.0, suffix=""):
     """Random patches into one uint8 array. Patches overlapping TXM no-data are
     rejected rather than zero-filled."""
     rng = np.random.default_rng(seed)
@@ -173,28 +174,35 @@ def cut_bank(domain, entries, per_image, patch, seed, exclude_reference=True):
     buf = np.zeros((len(keep) * per_image, patch, patch), np.uint8)
     src = []
     k = 0
+    need = int(np.ceil(patch * downsample))
     for e in keep:
         a = np.load(C.CACHE / domain / f"{e['stem']}.npy", mmap_mode="r")
         h, w = a.shape
-        if h < patch or w < patch:
+        if h < need or w < need:
             continue
         got = 0
         for _ in range(per_image * 30):
             if got >= per_image:
                 break
-            y = int(rng.integers(0, h - patch))
-            x = int(rng.integers(0, w - patch))
-            p = np.asarray(a[y:y + patch, x:x + patch])
+            y = int(rng.integers(0, h - need))
+            x = int(rng.integers(0, w - need))
+            p = np.asarray(a[y:y + need, x:x + need])
             if (p == 0).mean() > 0.02:      # mosaic no-data
                 continue
+            if downsample != 1.0:
+                from skimage.transform import resize
+                p = resize(p.astype(np.float32), (patch, patch), order=1,
+                           anti_aliasing=True, preserve_range=True)
+                p = np.clip(p, 0, 255).astype(np.uint8)
             buf[k] = p
             src.append((e["stem"], e["group"], y, x))
             k += 1
             got += 1
     buf = buf[:k]
-    np.save(C.CACHE / f"bank_{domain}.npy", buf)
-    (C.CACHE / f"bank_{domain}_src.json").write_text(json.dumps(src))
-    print(f"bank_{domain}: {k} patches of {patch}px from {len(keep)} images "
+    np.save(C.CACHE / f"bank_{domain}{suffix}.npy", buf)
+    (C.CACHE / f"bank_{domain}{suffix}_src.json").write_text(json.dumps(src))
+    print(f"bank_{domain}{suffix}: {k} patches of {patch}px from {len(keep)} images "
+          f"(source crop {need}px, downsample {downsample:g}) "
           f"({buf.nbytes/1e9:.2f} GB)")
     return buf
 
@@ -205,6 +213,17 @@ def main():
     ap.add_argument("--force", action="store_true", help="recompute cached images")
     ap.add_argument("--no-sem-flatfield", action="store_true",
                     help="leave the SEM illumination envelope in place")
+    ap.add_argument("--sem-downsample", type=float, default=1.0,
+                    help="divide SEM resolution by this before cutting patches, to "
+                         "put both modalities at the same PHYSICAL scale. Every "
+                         "experiment before this ran at 1.0, i.e. 1:1 pixels, with "
+                         "the true ratio unknown. Registering the two supplied pairs "
+                         "measured it at 2.56 (B2) and 3.18 (B3), so a SEM patch was "
+                         "covering roughly a third of the material a TXM patch of "
+                         "the same size covers.")
+    ap.add_argument("--bank-suffix", default="",
+                    help="write bank_sem<suffix>.npy, so a rescaled bank does not "
+                         "overwrite the one the published results used")
     ap.add_argument("--per-image", type=int, default=300)
     ap.add_argument("--patch", type=int, default=C.PATCH)
     ap.add_argument("--bank-only", action="store_true")
@@ -213,8 +232,11 @@ def main():
     if not args.bank_only:
         build_cache(args)
     man = json.loads((C.CACHE / "manifest.json").read_text())
-    cut_bank("sem", man["sem"], args.per_image, args.patch, 1)
-    cut_bank("txm", man["txm"], args.per_image, args.patch, 2)
+    # Only SEM is rescaled: TXM is the reference domain.
+    cut_bank("sem", man["sem"], args.per_image, args.patch, 1,
+             downsample=args.sem_downsample, suffix=args.bank_suffix)
+    cut_bank("txm", man["txm"], args.per_image, args.patch, 2,
+             suffix=args.bank_suffix)
 
 
 if __name__ == "__main__":

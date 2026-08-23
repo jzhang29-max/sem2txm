@@ -113,6 +113,11 @@ def main():
                          "time.")
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--device", default="auto")
+    ap.add_argument("--sem-downsample", type=float, default=1.0,
+                    help="divide SEM resolution by this before translating. MUST "
+                         "match what the checkpoint was trained with, or the model "
+                         "sees the wrong physical scale. 1.0 for every checkpoint "
+                         "except those trained on a _s<N> bank.")
     ap.add_argument("--no-crop-panel", action="store_true",
                     help="skip info-panel detection (use if already cropped)")
     ap.add_argument("--no-side-by-side", action="store_true")
@@ -152,6 +157,10 @@ def main():
             print(f"  [{i}/{len(files)}] {f.name}: unreadable ({e})")
             continue
         img01, box = preprocess(raw, crop_panel=not args.no_crop_panel)
+        if args.sem_downsample != 1.0:
+            from skimage.transform import rescale as _rs
+            img01 = _rs(img01, 1.0 / args.sem_downsample, anti_aliasing=True,
+                        preserve_range=True).astype(np.float32)
         pred = translate(G, img01, dev, args.tile, args.overlap, args.batch,
                          offsets=args.offsets)
 

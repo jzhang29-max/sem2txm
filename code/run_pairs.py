@@ -69,6 +69,10 @@ def main():
     ap.add_argument("--angles", default="-6,-3,0,3,6")
     ap.add_argument("--out", default=str(C.OUT / "pairs"))
     ap.add_argument("--device", default="auto")
+    ap.add_argument("--sem-downsample", type=float, default=1.0,
+                    help="model's training scale; the SEM is downsampled by this "
+                         "before translation and the registration ratio is divided "
+                         "by it, so both stay consistent")
     args = ap.parse_args()
 
     pf = Path(args.pairs)
@@ -107,6 +111,12 @@ def main():
             print(f"    missing file; skipped")
             continue
         sem, sem_raw_shape, _ = load_and_prep(sp, "sem")
+        if args.sem_downsample != 1.0:
+            from skimage.transform import rescale as _rs
+            sem = _rs(sem, 1.0 / args.sem_downsample, anti_aliasing=True,
+                      preserve_range=True).astype(np.float32)
+            print(f"    SEM downsampled by {args.sem_downsample:g} to match the "
+                  f"model's training scale -> {sem.shape}")
         txm, _, _ = load_and_prep(tp, "txm")
         print(f"    SEM {sem.shape}   TXM {txm.shape}")
 
@@ -114,7 +124,10 @@ def main():
         s_um, src, detail = sem_um_per_px(sp)
         t_um = by_frame.get(tp.name, txm_scale)
         if s_um:
-            print(f"    SEM scale ({src}): {s_um:.6f} um/px  {detail}")
+            s_um = s_um * args.sem_downsample   # a downsampled pixel covers more
+            print(f"    SEM scale ({src}): {s_um:.6f} um/px  {detail}"
+                  + (f"  [x{args.sem_downsample:g} after downsampling]"
+                     if args.sem_downsample != 1.0 else ""))
         if s_um and t_um:
             print(f"    TXM scale given: {t_um} um/px  ->  expected pixel ratio "
                   f"{t_um / s_um:.2f}  (SEM must be downsampled by this)")

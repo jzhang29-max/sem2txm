@@ -633,6 +633,65 @@ the mosaic's **no-data padding** at the frame edge. `register.py` now requires a
 template at least 20% of the frame and rejects candidate windows that are more than
 5% padding.
 
+## 12. Matched physical scale: the fourth intervention also fails
+
+The two pairs measured the SEM:TXM ratio at 2.56 (B2) and 3.18 (B3). Every
+experiment before this trained at **1:1 pixels**, so a SEM patch had been covering
+roughly a third of the material a same-sized TXM patch covers -- the flaw this
+README had been calling the most likely fatal one. Fixing it needs only the ratio,
+not pixel-aligned pairs, so the SEM bank was rebuilt at 2.9x downsampling (743 px
+crops resampled to 256) and the run repeated with the high-pass critic.
+
+One encouraging pre-training signal: `edge_corr` at iteration 1, identical weights
+and seed, was **0.3035** against 0.1395 for the 1:1 runs. Purely from putting the
+two domains at the same physical scale, the input's structure starts better matched
+to the target. And the registration confirms the rescale was about right: with the
+SEM pre-downsampled by 2.9, B3 re-registered at residual ratio **1.0** (its true
+ratio was 3.18, and 3.18/2.9 = 1.10).
+
+It did not help.
+
+| | original | +pixel idt | nce=0.25 | highpass | **scale-matched** |
+|---|---|---|---|---|---|
+| C2ST (0.5 ideal) | 0.9673 | **0.8688** | 0.9991 | 0.9993 | 0.9990 |
+| held-out identity pearson | 0.7178 | **0.8705** | 0.6481 | 0.7678 | 0.7917 |
+| crack contrast r | 0.921 | 0.868 | 0.868 | **0.963** | **0.963** |
+| translated IQR (target 0.192) | 0.1744 | 0.1570 | 0.0804 | 0.1306 | 0.1471 |
+| affine R^2, 60 patches | 0.631 | 0.661 | **0.450** | 0.647 | 0.553 |
+| **B3 paired pearson vs truth** | — | — | — | +0.3256 | **+0.2687** |
+
+The decisive column is the last. Against the real registered TXM, the scale-matched
+model correlates **+0.269** where the 1:1 model managed +0.326 and where the raw SEM
+manages **+0.473** and a blurred SEM **+0.502**. Matching the physical scale made
+paired fidelity *worse*, and both models remain well behind handing back the input.
+
+**A caveat on one number, so it is not read as a result.** `affine_r2` in the
+training logs was pooled-over-batch for the earlier runs and per-patch only after
+the fix in section 10, so the logged 0.182 / 0.265 for nce=0.25 and highpass are not
+comparable to the 0.512 logged here. The table above uses the same 60-random-patch
+protocol for all five, and by that measure every model sits at **0.45-0.66**.
+
+**And a tooling consequence worth recording.** B2 could not be tested at all: with
+its SEM downsampled 2.9x to 706x1059, the template falls below the 20%-of-frame
+minimum that section 11 added to stop spurious small-template matches. The guard is
+calibrated for full-resolution SEM and silently excludes rescaled input. It cost a
+data point rather than producing a wrong one, which is the right failure direction,
+but it is a limitation of the guard and not of the pair.
+
+### Four interventions, four failures
+
+| hypothesis | what was fixed | did it move the goal? |
+|---|---|---|
+| identity loss did not bound pixel distortion | distortion halved (0.718 -> 0.871 pearson) | no |
+| content constraint blocked texture transfer | affine R^2 fell to 0.450 | no -- appearance got worse |
+| critic rewarded contrast, not texture | crack retention best, 0.963 | no -- level match broke |
+| domains were at mismatched physical scale | scale matched, confirmed by re-registration | no -- paired fidelity fell |
+
+Each did what it targeted. None moved the outcome. Against registered ground truth
+the translation loses to a blurred copy of its own input, in every configuration
+tried. That consistency is the result: on this data, with this objective family, the
+barrier is not in any single loss term, weight, or resolution.
+
 ## What would actually improve this
 
 Ordered by measured evidence, not by novelty.
