@@ -8,6 +8,7 @@ nothing in it should be read as the correct answer for the row it sits in.
 import argparse
 import json
 import sys
+from pathlib import Path
 
 import numpy as np
 import tifffile
@@ -52,6 +53,8 @@ def grid(cells, titles, gap=6):
 
 def preprocessing_panel(size=512, seed=3):
     """Raw TXM vs the flat-fielded view the translator actually targets."""
+    if _need([C.CACHE / "manifest.json"], "preprocessing.png", "./run prep"):
+        return
     import destitch, flatfield
     rng = np.random.default_rng(seed)
     man = json.loads((C.CACHE / "manifest.json").read_text())
@@ -82,10 +85,28 @@ def preprocessing_panel(size=512, seed=3):
     print("  wrote figures/preprocessing.png", used)
 
 
+def _need(paths, what, cmd):
+    """Skip a panel with a useful message instead of a traceback.
+
+    These panels read regenerable cache. After a disk cleanup that removes it, the
+    right behaviour is to name the command that rebuilds it -- not to raise
+    FileNotFoundError from inside numpy.
+    """
+    missing = [p for p in paths if not Path(p).exists()]
+    if missing:
+        print(f"  skipping {what}: {Path(missing[0]).name} is absent. "
+              f"Rebuild with: {cmd}")
+        return True
+    return False
+
+
 def translation_panel(ckpt, size=512, n=4, seed=7, device="auto"):
     import torch
     from train import device_of
     from translate import load_generator
+    if _need([C.CACHE / "bank_sem.npy", C.CACHE / "bank_txm.npy"],
+             "translation_examples.png", "./run prep --bank-only"):
+        return
     dev = device_of(device)
     G, ck = load_generator(ckpt, dev)
     rng = np.random.default_rng(seed)
@@ -114,6 +135,8 @@ def full_frame_panel(ckpt, stem=None, scale=6, device="auto"):
     """A whole micrograph translated, downsampled for the README."""
     from train import device_of
     from translate import load_generator, translate
+    if _need([C.CACHE / "manifest.json"], "full_frame.png", "./run prep"):
+        return
     dev = device_of(device)
     G, ck = load_generator(ckpt, dev)
     man = json.loads((C.CACHE / "manifest.json").read_text())
@@ -135,7 +158,11 @@ def full_frame_panel(ckpt, stem=None, scale=6, device="auto"):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--ckpt", default=str(C.ROOT / "runs" / "cut" / "ckpt.pt"))
+    ap.add_argument("--ckpt", default="",
+                    help="default: the same resolution predict.py uses (shipped "
+                         "generator, then runs/*/final.pt). It used to hardcode "
+                         "runs/cut/ckpt.pt, which broke when those byte-identical "
+                         "duplicates of final.pt were cleaned up.")
     ap.add_argument("--only", default="", help="preprocessing | translation | full")
     ap.add_argument("--device", default="auto")
     args = ap.parse_args()
@@ -143,10 +170,13 @@ def main():
     print("panels:")
     if args.only in ("", "preprocessing"):
         preprocessing_panel()
-    from pathlib import Path
-    if not Path(args.ckpt).exists():
-        print("  (no checkpoint yet -- skipping translation panels)")
+    from predict import pick_checkpoint
+    try:
+        ckpt = str(pick_checkpoint(args.ckpt))
+    except SystemExit:
+        print("  (no checkpoint found -- skipping translation panels)")
         return
+    args.ckpt = ckpt
     if args.only in ("", "translation"):
         translation_panel(args.ckpt, device=args.device)
     if args.only in ("", "full"):
