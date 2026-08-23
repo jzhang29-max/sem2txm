@@ -80,6 +80,37 @@ def grad_xy(t):
     return gx[..., 1:, :], gy[..., :, 1:]
 
 
+def affine_r2(inp, out):
+    """Fraction of the OUTPUT explained by a best-fit affine map of the INPUT.
+
+    The honest collapse guard. xlate_l1 -- mean |G(x) - x| -- was the first attempt
+    and it is fooled by contrast: the pixel-identity run scored 0.31 against the
+    baseline's 0.25, which read as "translating more", when in fact its output was
+    merely a HIGHER-contrast copy of the input (std ratio 1.41) and 62% of it was
+    literally a rescale. A model that only adjusts brightness and gain has not
+    changed modality however large its L1.
+
+    R^2 near 1 means the prediction is the input rescaled. Near 0 means the output
+    is genuinely a different image.
+    """
+    # .cpu() before .double(): MPS has no float64, and float32 accumulation over
+    # ~500k elements loses enough precision to make R^2 unstable. Runs once per
+    # log interval, so the transfer is free.
+    x = inp.detach().flatten().cpu().double()
+    y = out.detach().flatten().cpu().double()
+    xm, ym = x.mean(), y.mean()
+    xc, yc = x - xm, y - ym
+    denom = (xc * xc).sum()
+    if denom <= 0:
+        return float("nan")
+    a = (xc * yc).sum() / denom
+    resid = yc - a * xc
+    tot = (yc * yc).sum()
+    if tot <= 0:
+        return float("nan")
+    return float(1.0 - resid.pow(2).sum() / tot)
+
+
 def idt_pixel_stats(idt, real):
     """Distortion the identity branch actually inflicts, in pixel space.
 
@@ -203,8 +234,8 @@ def main():
     w = csv.writer(log)
     if mode == "w":
         w.writerow(["iter", "d_loss", "g_gan", "g_nce", "g_idt", "g_idt_l1",
-                "g_idt_hf", "idt_px_l1", "idt_px_r", "xlate_l1", "edge_corr",
-                "sec"])
+                "g_idt_hf", "idt_px_l1", "idt_px_r", "xlate_l1", "affine_r2",
+                "edge_corr", "sec"])
 
     t0 = time.time()
     for it in range(start, args.iters + 1):
@@ -289,18 +320,20 @@ def main():
             # nothing. This is how much G moves its SEM input; if it approaches 0
             # the run has bought fidelity by abandoning the task.
             xl1 = (fake_b.detach() - a.detach()).abs().mean().item()
+            ar2 = affine_r2(a, fake_b)
             w.writerow([it, f"{d_loss.item():.4f}", f"{g_gan.item():.4f}",
                         f"{g_nce.item():.4f}", f"{g_idt.item():.4f}",
                         f"{g_idt_l1.detach().item():.4f}",
                         f"{g_idt_hf.detach().item():.4f}",
                         f"{px_l1:.4f}", f"{px_r:.4f}", f"{xl1:.4f}",
-                        f"{ec:.4f}", f"{time.time()-t0:.1f}"])
+                        f"{ar2:.4f}", f"{ec:.4f}", f"{time.time()-t0:.1f}"])
             log.flush()
             print(f"it {it:6d}  D {d_loss.item():.3f}  Ggan {g_gan.item():.3f}  "
                   f"NCE {g_nce.item():.3f}  idt {g_idt.item():.3f}  "
                   f"idtL1 {g_idt_l1.detach().item():.3f}  "
                   f"idtHF {g_idt_hf.detach().item():.3f}  "
-                  f"| px_l1 {px_l1:.4f} px_r {px_r:+.3f} xlate {xl1:.4f} | "
+                  f"| px_l1 {px_l1:.4f} px_r {px_r:+.3f} xlate {xl1:.4f} "
+                  f"affR2 {ar2:.3f} | "
                   f"edge_corr {ec:.3f}  {time.time()-t0:.0f}s", flush=True)
 
         if it % args.sample_every == 0 or it == args.iters:

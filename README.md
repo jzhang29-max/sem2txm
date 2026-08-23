@@ -351,6 +351,57 @@ at the true ratio would not help *geometry* transfer, since a crack of fixed
 physical size still occupies different pixel counts in the two domains. Getting the
 number is still worth doing -- it is just no longer the leading explanation.
 
+### 8. The outputs are a contrast remap, not a modality transfer
+
+Raised by the project owner from looking at the images -- "the TXM can't just look
+exactly like the SEM but a tiny bit light in colour" -- and it is correct. The
+metrics in sections 2 and 6 were circling this without naming it.
+
+![SEM input, both models, and a real TXM crop side by side: the predictions keep the SEM's sharp faceted grain texture while real TXM is soft and mottled](figures/model_comparison.png)
+
+Real TXM is soft, cloudy and mottled with no sharp grain facets. Both models keep
+the SEM's crisp faceted slip-band texture and merely fill the crack with grey. They
+match TXM's contrast RANGE while keeping SEM's TEXTURE:
+
+| | std | IQR |
+|---|---|---|
+| SEM input | 0.3244 | 0.7057 |
+| original model | 0.1280 | 0.1838 |
+| + pixel identity loss | 0.1062 | 0.1605 |
+| **real TXM** | 0.1683 | 0.1647 |
+
+Quantified with `affine_r2` -- the fraction of the output explained by a best-fit
+affine map of the input:
+
+| model | affine R^2 | output/input contrast |
+|---|---|---|
+| + pixel identity loss (was the default) | **0.623** | 1.41 |
+| original (NCE identity only) | 0.323 | 0.66 |
+
+62% of the pixel-identity model's output is literally its input rescaled. That term
+improved every fidelity metric in section 6 by pushing the generator toward the
+identity map -- the collapse the run was supposed to be guarded against.
+
+**The guard was the wrong statistic.** `xlate_l1`, mean `|G(x) - x|`, read 0.31
+against the baseline's 0.25 and was interpreted as "translating more". It grew
+because contrast grew, not because the mapping changed. `affine_r2` is the honest
+guard and now replaces it in the training log.
+
+This also supplies the mechanism for section 1's null. Arm B adds contrast-remapped
+SEM and arm C adds raw SEM; if the remap is 62% affine then the two arms are close
+to the same data, so B ≈ C is exactly what should be expected. The label transfer
+did not fail mysteriously -- there was little to transfer that raw SEM did not
+already carry.
+
+Likely cause, and the experiment now running: the PatchNCE content constraint is
+too strong relative to the adversarial term. It requires output patches to
+correspond to input patches in feature space, which forbids the texture
+reorganisation that looking like TXM demands, while the critic can be partly
+satisfied by matching global intensity statistics alone -- consistent with `p99`
+being its strongest single separator. A run at `--lambda-nce 0.25` tests exactly
+that, and the trade is legible: `affine_r2` should fall (genuinely different
+output) while crack-contrast correlation falls too (less geometry retained).
+
 ### 4. Geometry: preserved, and this part is solid
 
 ![SEM input beside its translation: crack outline, grain network and pores in the same places, no visible tile seams](figures/full_frame.png)

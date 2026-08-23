@@ -36,8 +36,27 @@ def _blend_window(tile, overlap):
 
 
 @torch.no_grad()
-def translate(G, img01, device, tile=256, overlap=64, batch=8):
-    """img01: float32 HxW in [0,1] (already flat-fielded). Returns same shape in [0,1]."""
+def translate(G, img01, device, tile=256, overlap=64, batch=8, offsets=1):
+    """img01: float32 HxW in [0,1] (already flat-fielded). Returns same shape in [0,1].
+
+    `offsets` averages over that many shifted tile grids (1, 2 or 4). This is not
+    cosmetic. The generator uses InstanceNorm, which normalises per input tile, so a
+    tile's output brightness depends on that tile's own content statistics. Adjacent
+    tiles therefore disagree about mean level and the raised-cosine blend turns the
+    disagreement into soft rectangular patches rather than removing it -- clearly
+    visible on a 25 MP frame. Averaging over grids whose seams fall in different
+    places suppresses what is a function of tile position while leaving what is a
+    function of the image.
+    """
+    if offsets > 1:
+        acc = np.zeros_like(np.asarray(img01, np.float32))
+        shifts = [(0, 0), (tile // 2, tile // 2), (tile // 2, 0), (0, tile // 2)]
+        used = shifts[:offsets]
+        for dy, dx in used:
+            rolled = np.roll(img01, (dy, dx), axis=(0, 1))
+            out = translate(G, rolled, device, tile, overlap, batch, offsets=1)
+            acc += np.roll(out, (-dy, -dx), axis=(0, 1))
+        return acc / len(used)
     h, w = img01.shape
     step = tile - overlap
     ph = max(tile, int(np.ceil((h - overlap) / step)) * step + overlap)
