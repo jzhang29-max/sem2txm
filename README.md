@@ -289,6 +289,68 @@ term's own training loss fell to 0.024 -- that is a loss in NCE feature space, a
 it is now clear that low identity-NCE does not imply low pixel-level distortion.
 The thing being optimised was not the thing that mattered.
 
+### 6. Fixing the fidelity did not fix the transfer
+
+Section 3 found the identity term was not bounding what it was named for: its NCE
+loss reached 0.024 in feature space while `G(y)` still cost ~4 px of resolution.
+So it was replaced by terms that measure pixel distortion directly -- an L1 on
+`|G(y) - y|` and an L1 on image gradients, the second aimed at the measured failure
+(fine detail) rather than the low frequencies a plain L1 is dominated by. Weight
+chosen by probe: at lambda 0 / 5 / 20 the identity distortion runs 0.175 / 0.163 /
+0.177 with the collapse guard `xlate_l1` at 0.254 / 0.212 / 0.241, so nothing
+collapses and 20 buys nothing while making the pixel term 6x the adversarial one.
+
+A full 5000-iteration run at lambda 5, identical to the baseline in every other
+respect:
+
+| | baseline | + pixel identity loss |
+|---|---|---|
+| held-out identity SSIM | 0.5928 | **0.8311** |
+| held-out identity pearson | 0.7178 | **0.8705** |
+| held-out identity NMI | 1.0664 | **1.1294** |
+| distortion, read off the ladder | ~blur sigma 4 | **~blur sigma 1-2** |
+| C2ST vs real TXM (0.5 = ideal) | 0.9673 | **0.8688** |
+| crack contrast r | 0.921 | 0.868 |
+| **B − C (the decisive comparison)** | +0.0114 | **+0.0050 ±0.0160, signs disagree** |
+
+The fix worked on what it targeted, and by a lot: distortion fell from a 4-pixel
+blur equivalent to roughly one, and the two-sample AUC fell from 0.967 to 0.869 --
+the largest appearance gain anywhere in this project. Crack contrast correlation
+slipped slightly (0.921 to 0.868).
+
+**And the transfer result did not move.** B − C stayed inside the noise with its
+sign flipping across seeds, and no arm beat A.
+
+That is a sharper negative than section 1 on its own. Translation quality improved
+substantially on three independent measures at once, and the downstream benefit
+remained absent -- so **fidelity was not the bottleneck either**. Whatever prevents
+a transferred SEM label from teaching a TXM detector here is not the generator's
+distortion, and is not its appearance match.
+
+### 7. Scale mismatch is not the dominant domain difference
+
+The unknown SEM:TXM pixel ratio was named in earlier versions of this README as the
+most likely single flaw -- if a SEM pixel covers 7x less material than a TXM pixel,
+the generator was matching mismatched fields of view. That can be tested without
+knowing the true ratio, because there should be one downsampling factor at which the
+domains look most alike: `./run scalematch` downsamples SEM by r and asks a
+classifier to separate the result from real TXM.
+
+| SEM downsample ratio | 1 | 2 | 3 | 4 | 6 | 8 | 12 | 16 |
+|---|---|---|---|---|---|---|---|---|
+| C2ST AUC | 0.9858 | 0.9981 | 0.9991 | 0.9995 | 0.9995 | 0.9995 | 0.9988 | 0.9994 |
+
+The curve is **flat** -- 0.986 to 0.9995 across a 16x range. No scale makes the two
+domains meaningfully more alike, so this yields no ratio estimate, and more
+importantly the difference the classifier exploits is **scale-invariant**. The
+modalities differ by more than magnification.
+
+This downgrades the scale hypothesis without eliminating it. What it shows is that
+texture separability does not depend on scale; what it cannot show is that training
+at the true ratio would not help *geometry* transfer, since a crack of fixed
+physical size still occupies different pixel counts in the two domains. Getting the
+number is still worth doing -- it is just no longer the leading explanation.
+
 ### 4. Geometry: preserved, and this part is solid
 
 ![SEM input beside its translation: crack outline, grain network and pores in the same places, no visible tile seams](figures/full_frame.png)
