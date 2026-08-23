@@ -21,6 +21,11 @@ out/
 figures/databars/*
 !figures/databars/260622_316_H_b2_front_CBS_01_databar.png
 
+# The pair images are lab data belonging to the sibling repositories' datasets, so
+# only the manifest and the notes are committed -- not 254 MB of micrographs.
+pairs/**/*.tif
+pairs/**/*.tiff
+
 __pycache__/
 *.pyc
 .venv/

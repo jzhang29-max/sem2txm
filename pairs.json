@@ -1,17 +1,18 @@
 {
+  "_comment": "Paths are relative to this file. See pairs/README.md.",
   "txm_um_per_px": null,
   "txm_um_per_px_by_frame": {},
   "pairs": [
     {
       "name": "B2",
-      "sem": "/Users/jiamingzhang/Desktop/B2/260708_316_H_b2_front_CBS_002.tif",
-      "txm": "/Users/jiamingzhang/Desktop/B2/Average_mosaic_260618_b2_343_75_LARGE_idx00000_mosaictileAA_img001of010.xrm.bim.bim.tif",
+      "sem": "pairs/B2/260708_316_H_b2_front_CBS_002.tif",
+      "txm": "pairs/B2/Average_mosaic_260618_b2_343_75_LARGE_idx00000_mosaictileAA_img001of010.xrm.bim.bim.tif",
       "note": "same region, not aligned"
     },
     {
       "name": "B3",
-      "sem": "/Users/jiamingzhang/Desktop/B3/260622_316_amb_b3_CBS_01.tif",
-      "txm": "/Users/jiamingzhang/Desktop/B3/Average_mosaic_260620_b3_388_13um_LARGE_2_idx00000_mosaictileAA_img001of010.xrm.bim.bim.tif",
+      "sem": "pairs/B3/260622_316_amb_b3_CBS_01.tif",
+      "txm": "pairs/B3/Average_mosaic_260620_b3_388_13um_LARGE_2_idx00000_mosaictileAA_img001of010.xrm.bim.bim.tif",
       "note": "same region, not aligned"
     }
   ]
