@@ -23,6 +23,7 @@ case "$stage" in
   eval)     exec "$PY" code/eval_translation.py "${@:2}" ;;
   identity) exec "$PY" code/eval_identity.py "${@:2}" ;;
   scalematch) exec "$PY" code/scale_match.py "${@:2}" ;;
+  compare)  exec "$PY" code/compare_models.py "${@:2}" ;;
   transfer) exec "$PY" code/eval_label_transfer.py "${@:2}" ;;
   figures)  "$PY" code/make_panels.py; exec "$PY" code/make_figures.py ;;
   scale)    exec "$PY" code/read_scale.py "${@:2}" ;;
@@ -47,6 +48,7 @@ usage: ./run [stage] [args...]
   eval       appearance + geometry measurements
   identity   how much the generator distorts held-out real TXM
   scalematch estimate the SEM:TXM pixel ratio from texture separability
+  compare    several checkpoints side by side vs real TXM, with metrics
   transfer   the label-transfer experiment (arms A/B/C/D)
   figures    regenerate every figure the README points at
   scale      recover SEM um/px from the burned-in scale bar
