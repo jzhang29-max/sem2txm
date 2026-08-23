@@ -744,6 +744,73 @@ anything below about ±0.05, which is larger than any effect it measured. Dense
 ground truth on a second specimen would do more for confidence than any
 architecture change here.
 
+## How much to trust any of this
+
+Every claim here is one of three strengths. Treating them as equal would be the
+main way to misread this repo.
+
+| claim | evidence | strength |
+|---|---|---|
+| SEM pixel size is 0.042-0.104 um/px | instrument metadata, and the scale bar agrees to 0.07% at two magnifications | **strong** |
+| SEM masks register on the translation | 39 of 39 exact, asserted in `./run prep` | **strong** |
+| The translation loses to raw/blurred SEM | 2 registered pairs, holds at every resolution (below) | **moderate** |
+| Translated labels do not help a TXM detector | 10 seeds, sign test, equal row budgets | **moderate** |
+| The outputs are ~half a contrast remap | affine R^2 0.45-0.66, 60 random patches, 5 models | **moderate** |
+| TXM pixel size | bounded 0.13-0.27 um/px; the two pairs disagree | **weak -- do not quote** |
+| Any single arm difference below ~0.05 AUC | inside the +-0.038 baseline seed spread | **not resolvable** |
+
+### Could the negative result be overfitting?
+
+No, and the reason is the direction of the failure. Overfitting makes a model
+reproduce its training distribution *too* well. Here the model performs **worse than
+handing back its own input** -- there is no amount of memorisation that produces
+that. If anything the setup is biased the other way: B2's SEM, B3's SEM and B3's TXM
+were all in the training banks as domain examples, which should flatter the model,
+not penalise it. (No correspondence leaks, because the objective is unpaired -- the
+model was never shown which SEM goes with which TXM.)
+
+The genuine sampling weakness is different and worth stating plainly: **the
+independent unit is the specimen, not the patch.** 18,600 SEM and 19,800 TXM patches
+come from 62 frames in **9** specimen groups and 66 mosaics in **5**. Effective n is
+about 9 and 5. That limits how far any of this generalises -- but it does not explain
+a model losing to its own input on frames it trained on.
+
+### Could the fidelity result be a registration artifact?
+
+This was the serious threat. The B3 registration leaves a ~35 px residual, and
+misalignment penalises fine detail more than coarse -- which could hand the win to a
+blurred baseline for entirely the wrong reason. Two controls:
+
+**It loses to the UNBLURRED input too.** Blur cannot help there, so misregistration
+cannot be the mechanism: prediction r = +0.193 against raw SEM r = +0.252.
+
+**The ordering is flat across resolution.** Evaluated at successive downsamplings,
+where the residual shrinks from 35 px to 2 px:
+
+| scale | residual | prediction | raw SEM | blurred SEM |
+|---|---|---|---|---|
+| 1/1 | 34.8 px | 0.193 | 0.252 | 0.270 |
+| 1/2 | 17.4 px | 0.195 | 0.251 | 0.268 |
+| 1/4 | 8.7 px | 0.195 | 0.252 | 0.269 |
+| 1/8 | 4.3 px | 0.202 | 0.256 | 0.271 |
+| **1/16** | **2.2 px** | **0.179** | **0.236** | **0.252** |
+
+Same ordering, near-identical margins, all the way down to an effectively registered
+2 px. The result is not an artifact of the loose registration. (These r values are
+computed on TXM-valid pixels only, so they differ from the section 11 table, which
+standardises without masking; the ordering is identical in both.)
+
+### What could still overturn it
+
+- **A wrong TXM scale.** The ratio is bounded, not pinned, and the two pairs disagree
+  (2.56 vs 3.18). The 2.9x run tested the middle of that range and failed, but a true
+  ratio outside 2.5-3.2 has not been tested.
+- **Two pairs, one specimen each.** The fidelity conclusion rests on n=2, and B2 could
+  not be tested at the rescaled setting at all.
+- **One architecture family.** Four interventions inside one objective family. A
+  genuinely different approach -- paired regression on well-registered data, or a
+  diffusion model -- is untested here.
+
 ## Limits
 
 - **It does not see under the surface.** The single most likely misreading. This
