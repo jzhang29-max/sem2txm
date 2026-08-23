@@ -528,6 +528,42 @@ M4 Max; this run averaged worse because the host was shared. Both contrastive te
 fall steadily and the adversarial pair stays in a stable band -- no mode collapse,
 no critic runaway. The training dynamics are not the problem.
 
+## If you have registered pairs: `./run pairs`
+
+This is the measurement the repo cannot otherwise make. Copy `pairs.example.json`
+to `pairs.json`, fill in the paths, and run:
+
+```bash
+./run pairs
+```
+
+For each pair it preprocesses both frames through the training pipeline,
+coarse-registers over scale and rotation scored by mutual information, **refuses to
+continue if the match sits at the measured independence floor** (NMI 1.01; two
+unrelated fields score 1.004), refines with RANSAC inside the located window,
+and reports the **residual** -- which is what decides whether a pixel-aligned loss
+is usable:
+
+| median residual | what to use |
+|---|---|
+| ≤ 2 px | pixel L1 / pix2pix, as in [TXM2SEM](https://github.com/suetri-a/TXM2SEM) |
+| 2-8 px | contextual or patch-correlation loss, or downsample so it lands near 2 px |
+| > 8 px | distribution-level supervision only; L1 would teach blur |
+
+It then measures predicted-vs-real fidelity against two baselines -- the raw SEM and
+a blurred SEM -- because the translator has earned nothing until it beats doing
+nothing. And it writes a checkerboard overlay per pair, which is the thing to look
+at before believing any number: aligned structures continue across the tile
+boundaries, misaligned ones jump at every edge.
+
+**On the TXM pixel size**, any one of these is enough and the script converts:
+um/px directly; the field of view in um for one named frame; or objective + binning
++ camera pixel size. SEM is recovered automatically from the burned-in bar. One
+caution: `260618_b2_343_75` and its `LARGE` field of view were verified to share a
+pixel size (scale 1.0020), but that was one pair -- the `ZOOM` and `LARGE` naming
+suggests several magnifications exist, so use `txm_um_per_px_by_frame` if the frames
+you send were taken at different settings.
+
 ## What would actually improve this
 
 Ordered by measured evidence, not by novelty.

@@ -19,6 +19,7 @@ case "$stage" in
   prep)     exec "$PY" code/prep.py "${@:2}" ;;
   train)    exec "$PY" code/train.py "${@:2}" ;;
   predict)  exec "$PY" code/predict.py "${@:2}" ;;
+  pairs)    exec "$PY" code/run_pairs.py "${@:2}" ;;
   apply)    exec "$PY" code/translate.py "${@:2}" ;;
   eval)     exec "$PY" code/eval_translation.py "${@:2}" ;;
   identity) exec "$PY" code/eval_identity.py "${@:2}" ;;
@@ -44,6 +45,7 @@ usage: ./run [stage] [args...]
   prep       cache both modalities in one domain, cut the patch banks
   train      train the SEM -> TXM translator
   predict    SEM image(s) in -> predicted TXM image(s) out  <-- start here
+  pairs      register SEM/TXM pairs from pairs.json and measure real fidelity
   apply      translate the cached SEM frames (internal, for experiments)
   eval       appearance + geometry measurements
   identity   how much the generator distorts held-out real TXM

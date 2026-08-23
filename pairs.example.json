@@ -1,0 +1,34 @@
+{
+  "_comment": [
+    "Fill this in, save as pairs.json next to it, then run:  ./run pairs",
+    "Paths may be absolute, or relative to this file. Any of .tif .tiff .png .jpg.",
+    "'note' is free text -- if you know roughly where the SEM sits in the TXM",
+    "frame, say so; it is not required but it narrows the search."
+  ],
+
+  "txm_um_per_px": null,
+  "_txm_um_per_px_help": [
+    "The single most useful number. Any ONE of these is enough and I will convert:",
+    "  - um per pixel directly, e.g. 0.325",
+    "  - field of view in um for one frame, plus which frame it was",
+    "  - objective (20x, 40x ...) + detector binning + camera pixel size",
+    "If different frames used different magnifications, use txm_um_per_px_by_frame",
+    "below instead and leave this null."
+  ],
+  "txm_um_per_px_by_frame": {},
+
+  "pairs": [
+    {
+      "name": "pair1",
+      "sem": "/path/to/sem_frame_1.tif",
+      "txm": "/path/to/txm_frame_1.tif",
+      "note": "same region, not aligned"
+    },
+    {
+      "name": "pair2",
+      "sem": "/path/to/sem_frame_2.tif",
+      "txm": "/path/to/txm_frame_2.tif",
+      "note": ""
+    }
+  ]
+}
