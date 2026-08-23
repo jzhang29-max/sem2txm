@@ -29,8 +29,38 @@ import numpy as np
 
 import config as C
 
-sys.path.insert(0, str(C.TXM_REPO / "code"))
-sys.path.insert(0, str(C.SEM_REPO / "code"))
+# Prefer the sibling repositories when present, so predictions match exactly what
+# the experiments were run against. Fall back to verbatim copies in vendored.py
+# otherwise, so a standalone clone works -- `./run predict` previously died with
+# ModuleNotFoundError on any machine that had not also cloned both siblings.
+for _p in (C.TXM_REPO / "code", C.SEM_REPO / "code"):
+    if _p.exists():
+        sys.path.insert(0, str(_p))
+
+
+def _preprocessors():
+    """(flatfield, robust_normalize, sem_crop_box, source_label)"""
+    try:
+        import flatfield as _ff
+        from txm_features import robust_normalize as _rn
+        from prep import sem_crop_box as _crop
+        return _ff.flatfield, _rn, _crop, "sibling repos"
+    except Exception:
+        import vendored as _v
+
+        def _rn(img, plo=1.0, phi=99.0):
+            lo, hi = np.percentile(img, [plo, phi])
+            if hi <= lo:
+                hi, lo = float(img.max()), float(img.min())
+            return np.clip((np.asarray(img, np.float64) - lo) / max(hi - lo, 1e-8),
+                           0.0, 1.0).astype(np.float32)
+
+        def _crop(raw):
+            lo, hi = np.percentile(raw, [1.0, 99.5])
+            img8 = np.clip((raw - lo) / max(hi - lo, 1e-8) * 255, 0, 255).astype(np.uint8)
+            return _v.find_field_of_view(img8)
+
+        return _v.flatfield, _rn, _crop, "vendored copies"
 
 EXTS = (".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp")
 
@@ -78,11 +108,9 @@ def read_image(path):
 
 def preprocess(raw, crop_panel=True, sigma=24.0):
     """Same chain prep.py uses, so a prediction matches what the model trained on."""
-    import flatfield
-    from txm_features import robust_normalize
+    flatfield_fn, robust_normalize, sem_crop_box, _src = _preprocessors()
     box = None
     if crop_panel:
-        from prep import sem_crop_box
         try:
             box = sem_crop_box(raw)
             x0, y0, x1, y1 = box
@@ -92,7 +120,7 @@ def preprocess(raw, crop_panel=True, sigma=24.0):
                 box = None
         except Exception:
             box = None
-    ff = flatfield.flatfield(raw, sigma_y=sigma, sigma_x=sigma)
+    ff = flatfield_fn(raw, sigma_y=sigma, sigma_x=sigma)
     if isinstance(ff, tuple):
         ff = ff[0]
     return np.asarray(robust_normalize(np.asarray(ff, np.float64), 1.0, 99.0),
@@ -102,7 +130,7 @@ def preprocess(raw, crop_panel=True, sigma=24.0):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("inputs", nargs="+", help="SEM image files, or folders of them")
+    ap.add_argument("inputs", nargs="*", help="SEM image files, or folders of them")
     ap.add_argument("--out", default=str(C.OUT / "predictions"))
     ap.add_argument("--ckpt", default="")
     ap.add_argument("--tile", type=int, default=512)
@@ -124,9 +152,20 @@ def main():
     ap.add_argument("--no-crop-panel", action="store_true",
                     help="skip info-panel detection (use if already cropped)")
     ap.add_argument("--no-side-by-side", action="store_true")
+    ap.add_argument("--selftest", action="store_true",
+                    help="check the vendored preprocessing against the sibling "
+                         "originals, then exit")
     ap.add_argument("--png-scale", type=int, default=1,
                     help="downsample factor for the PNGs; 1 = full resolution")
     args = ap.parse_args()
+
+    if args.selftest:
+        import vendored
+        print("vendored-vs-upstream preprocessing selftest:")
+        r = vendored.selftest()
+        print({True: "  identical", False: "  STALE -- re-copy from upstream",
+               None: "  skipped (sibling repos not present)"}[r])
+        raise SystemExit(0 if r is not False else 1)
 
     files = []
     for item in args.inputs:
@@ -150,7 +189,9 @@ def main():
     G, ck = load_generator(ckpt, dev)
     outdir = Path(args.out)
     outdir.mkdir(parents=True, exist_ok=True)
+    _, _, _, src = _preprocessors()
     print(f"model {ckpt.relative_to(C.ROOT)} (iter {ck['iter']}) on {dev}")
+    print(f"preprocessing from {src}")
     print(f"{len(files)} image(s) -> {outdir}\n")
 
     for i, f in enumerate(files, 1):

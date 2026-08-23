@@ -53,7 +53,14 @@ cd sem2txm && ./run predict my_micrograph.tif
 ./run groups               # the specimen grouping used for splits
 ```
 
-Both sibling repos are expected next to this one; override with `SEM2TXM_SEM_REPO`
+**`predict` needs nothing but this repo.** It ships a trained generator and carries
+verbatim copies of the three preprocessing functions it borrows, so a bare clone
+works. `./run predict --selftest` asserts those copies still match the originals when
+the siblings are present; verified bit-identical on a 25 MP frame.
+
+**Every other stage needs the two sibling repos**, because that is where the
+micrographs live — `prep`, `train`, `eval`, `transfer`, `identity`, `scale`,
+`scalematch`, `compare`. Expected next to this one; override with `SEM2TXM_SEM_REPO`
 / `SEM2TXM_TXM_REPO`. Every stage is resumable. Measured on an M4 Max (36 GB, torch
 on MPS): `prep` ~35 min for 2.1 gigapixels, `train` 1.4–1.6 s/iter at batch 8.
 
