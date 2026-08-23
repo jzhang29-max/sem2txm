@@ -452,6 +452,50 @@ per-patch mean and spread rather than one crop's number, and the single-crop val
 quoted in section 8 should be read as illustrative rather than as the model's
 property.
 
+### 10. High-pass critic: the third hypothesis also fails
+
+Section 9 blamed the critic: a 3-layer PatchGAN on flat-fielded data can satisfy
+itself on the intensity distribution, so a contrast remap wins. The fix was to show
+it a high-passed, per-sample-standardised image, which makes a pure remap invisible
+to it -- verified before training, the critic's input changes 13% under an affine
+remap with raw input and **0.01%** with high-pass. One change from the baseline;
+`lambda_nce` stayed 1.0.
+
+| | original | +pixel identity | nce=0.25 | **highpass critic** |
+|---|---|---|---|---|
+| C2ST (0.5 ideal) | 0.9673 | **0.8688** | 0.9991 | **0.9993** |
+| spectrum distance to TXM | 34.4% | 35.1% | **29.4%** | **46.3%** |
+| crack contrast r | 0.921 | 0.868 | 0.868 | **0.963** |
+| held-out identity pearson | 0.7178 | **0.8705** | 0.6481 | 0.7678 |
+| affine R^2, 60 random patches | 0.631 ±0.152 | 0.661 ±0.162 | **0.450** ±0.142 | 0.647 ±0.135 |
+| **B − C, 10 seeds** | — | +0.0140, p=0.344 | — | **−0.0162, p=0.021** |
+
+Pre-registered criteria were "affine R^2 down AND C2ST toward 0.5, with crack
+contrast holding". Crack contrast improved to its best value, 0.963. Everything else
+went the wrong way. C2ST reached 0.9993 and the spectral match became the worst of
+the four.
+
+The mechanism is legible, and it is a consequence of the change itself. The C2ST
+separators moved from `p99` / `p75` / `std` -- the intensity **tail** -- to `mean`
+(0.912) / `p50` (0.907) / `p25` (0.876), the central **level**. Hiding level and gain
+from the critic removed any adversarial pressure to match them, so the output level
+drifted. The critic did get its texture pressure, which is why crack retention rose;
+the trade was one appearance defect for another.
+
+And the transfer result is now significantly **negative**: B − C = −0.0162, 1/10
+seeds positive, **p=0.021**. Translated SEM is worse than raw SEM for this model, and
+arm D collapses to 0.6001 -- barely above chance -- consistent with a wrong intensity
+level wrecking a detector built on intensity features.
+
+**A correction to sections 8 and 9.** They reported affine R^2 of 0.265 for this run
+and 0.182 for nce=0.25 as evidence that both were less rescale-like. Those came from
+a training-log metric that pooled all 8 patches of a batch into one affine fit;
+different patches have different level and gain, so no single map fits them jointly
+and the pooled figure is far too low. Measured per patch over 60 random patches the
+values are **0.647** and **0.450**. `affine_r2` is now per-patch. The corrected
+picture is that **all four models sit at 0.45-0.66** -- the contrast-remap character
+the owner identified by eye was never fixed by any of these three interventions.
+
 ### 4. Geometry: preserved, and this part is solid
 
 ![SEM input beside its translation: crack outline, grain network and pores in the same places, no visible tile seams](figures/full_frame.png)

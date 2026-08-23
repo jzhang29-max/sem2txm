@@ -92,23 +92,32 @@ def affine_r2(inp, out):
 
     R^2 near 1 means the prediction is the input rescaled. Near 0 means the output
     is genuinely a different image.
+
+    PER PATCH, then averaged -- not pooled over the batch. The first version
+    flattened all 8 patches of a batch into one vector and fitted a single affine
+    map to the lot. Different patches have different local level and gain, so no
+    single affine map fits them jointly and the pooled R^2 comes out far too low:
+    it read 0.265 for the high-pass run where the per-patch value measured over 60
+    random patches is 0.647, and 0.182 for the nce=0.25 run where the honest value
+    is 0.450. Those understated numbers were reported as evidence that the two runs
+    were less rescale-like than they are.
     """
-    # .cpu() before .double(): MPS has no float64, and float32 accumulation over
-    # ~500k elements loses enough precision to make R^2 unstable. Runs once per
-    # log interval, so the transfer is free.
-    x = inp.detach().flatten().cpu().double()
-    y = out.detach().flatten().cpu().double()
-    xm, ym = x.mean(), y.mean()
-    xc, yc = x - xm, y - ym
-    denom = (xc * xc).sum()
-    if denom <= 0:
-        return float("nan")
-    a = (xc * yc).sum() / denom
-    resid = yc - a * xc
-    tot = (yc * yc).sum()
-    if tot <= 0:
-        return float("nan")
-    return float(1.0 - resid.pow(2).sum() / tot)
+    # .cpu() before .double(): MPS has no float64, and float32 accumulation loses
+    # enough precision to make R^2 unstable. Once per log interval, so it is free.
+    a = inp.detach().cpu().double()
+    b = out.detach().cpu().double()
+    out_vals = []
+    for i in range(a.shape[0]):
+        x = a[i].flatten()
+        y = b[i].flatten()
+        xc, yc = x - x.mean(), y - y.mean()
+        denom = (xc * xc).sum()
+        tot = (yc * yc).sum()
+        if denom <= 0 or tot <= 0:
+            continue
+        coef = (xc * yc).sum() / denom
+        out_vals.append(float(1.0 - (yc - coef * xc).pow(2).sum() / tot))
+    return float(np.mean(out_vals)) if out_vals else float("nan")
 
 
 def idt_pixel_stats(idt, real):
