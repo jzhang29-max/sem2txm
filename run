@@ -13,7 +13,10 @@ if [ ! -x "$PY" ]; then
   .venv/bin/python3 -m pip install --quiet -r requirements.txt
 fi
 
-stage="${1:-all}"
+# Default to printing usage, NOT to running everything. A bare `./run`
+# previously kicked off prep + a 5000-iteration train, which is hours of
+# work from a keystroke that looks like asking for help.
+stage="${1:-help}"
 
 case "$stage" in
   prep)     exec "$PY" code/prep.py "${@:2}" ;;
@@ -30,6 +33,9 @@ case "$stage" in
   scale)    exec "$PY" code/read_scale.py "${@:2}" ;;
   groups)   exec "$PY" code/config.py ;;
   all)
+    echo "Running every stage: prep, train, apply, eval, transfer, figures."
+    echo "This is hours of work. Ctrl-C now if that was not intended."
+    sleep 3
     "$PY" code/prep.py
     "$PY" code/train.py
     "$PY" code/translate.py
@@ -38,7 +44,7 @@ case "$stage" in
     "$PY" code/make_panels.py
     "$PY" code/make_figures.py
     ;;
-  *)
+  help|-h|--help|*)
     cat <<'USAGE'
 usage: ./run [stage] [args...]
 
@@ -55,7 +61,7 @@ usage: ./run [stage] [args...]
   figures    regenerate every figure the README points at
   scale      recover SEM um/px from the burned-in scale bar
   groups     print the specimen grouping used for train/test splits
-  all        every stage in order (default)
+  all        every stage in order (hours; prompts before starting)
 
 Data comes from two sibling repositories, expected next to this one:
   ../sem-crack-detector

@@ -4,6 +4,10 @@ cache/
 runs/
 out/
 
+# models/ IS tracked: it holds the shipped generator, so `./run predict` works on a
+# fresh clone. runs/ (full checkpoints with critic + projection heads) is not.
+!models/
+
 # figures/ IS tracked. It was previously ignored with an explicit per-file
 # allow-list, and that broke twice: a figure added to the README after the list was
 # written (paired_deltas.png, then model_comparison.png and three_way_comparison.png)

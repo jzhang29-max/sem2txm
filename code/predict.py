@@ -38,7 +38,10 @@ EXTS = (".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp")
 # pearson 0.871 against 0.718, and a two-sample AUC of 0.869 against 0.967. Both
 # better than the original run; crack-contrast correlation is slightly worse
 # (0.868 vs 0.921), which matters for label transfer but not for looking at.
-DEFAULT_CKPTS = ["runs/cut_idtfix/final.pt", "runs/cut_idtfix/ckpt.pt",
+# The shipped generator comes first, so a fresh clone can predict without training.
+# It is runs/cut_idtfix at iteration 5000, generator weights only.
+DEFAULT_CKPTS = ["models/sem2txm_generator.pt",
+                 "runs/cut_idtfix/final.pt", "runs/cut_idtfix/ckpt.pt",
                  "runs/cut/final.pt", "runs/cut/ckpt.pt"]
 
 

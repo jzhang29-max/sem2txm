@@ -1,10 +1,12 @@
-"""Every figure in the README, from the artefacts on disk.
+"""Every figure the README points at, regenerated from the artefacts on disk.
 
-Charts follow one palette in fixed slot order (blue, orange, aqua, yellow),
-carry direct labels rather than relying on colour alone, and never put two
-scales on one pair of axes -- AUC and IoU get their own panels because they are
-different measures, and edge-correlation gets its own figure rather than a
-second y-axis on the loss plot.
+Driven by a RUNS registry rather than hardcoded paths, because this project ended up
+with five training runs and figures that silently referred to whichever one happened
+to have written `out/eval_translation.json` last. Each figure now carries the run it
+came from in its title, so a stale figure is visible rather than misleading.
+
+Charts follow one palette in fixed slot order, carry direct labels or a legend
+rather than relying on colour alone, and never put two scales on one pair of axes.
 """
 import csv
 import json
@@ -17,22 +19,36 @@ import numpy as np
 
 import config as C
 
-SURFACE = "#fcfcfb"
-INK = "#0b0b0b"
-INK2 = "#52514e"
-MUTED = "#8a8a85"
+SURFACE, INK, INK2, MUTED = "#fcfcfb", "#0b0b0b", "#52514e", "#8a8a85"
 SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
+
+# (label, run dir, identity json, translation json)
+RUNS = [
+    ("original", "cut", "eval_identity.json", "eval_translation.json"),
+    ("+pixel identity", "cut_idtfix", "idtfix_identity.json", "idtfix_translation.json"),
+    ("nce=0.25", "cut_rebal", "rebal_identity.json", "rebal_translation.json"),
+    ("high-pass critic", "cut_hp", "hp_identity.json", "hp_translation.json"),
+    ("scale-matched 2.9x", "cut_s29", "s29_identity.json", "s29_translation.json"),
+]
+# The 10-seed transfer run on the best model by intrinsic metrics.
+TRANSFER_10 = "idtfix_transfer_10seeds.json"
+TRANSFER_LABEL = "+pixel identity model, 10 seeds"
+
+ARM_LABEL = {"A_real_txm_only": "A  real TXM only",
+             "B_txm_plus_translated_sem": "B  + translated SEM",
+             "C_txm_plus_raw_sem": "C  + raw SEM",
+             "D_translated_sem_only": "D  translated SEM only"}
 
 
 def style(ax, xlabel="", ylabel="", title=""):
     ax.set_facecolor(SURFACE)
     ax.grid(True, color="#e6e6e2", linewidth=0.8, zorder=0)
     ax.set_axisbelow(True)
-    for s in ("top", "right"):
-        ax.spines[s].set_visible(False)
-    for s in ("left", "bottom"):
-        ax.spines[s].set_color(MUTED)
-        ax.spines[s].set_linewidth(0.8)
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+    for sp in ("left", "bottom"):
+        ax.spines[sp].set_color(MUTED)
+        ax.spines[sp].set_linewidth(0.8)
     ax.tick_params(colors=INK2, labelsize=9, length=3, width=0.8)
     if xlabel:
         ax.set_xlabel(xlabel, color=INK2, fontsize=10)
@@ -42,231 +58,214 @@ def style(ax, xlabel="", ylabel="", title=""):
         ax.set_title(title, color=INK, fontsize=11, loc="left", pad=10)
 
 
-def fig(w, h):
-    f = plt.figure(figsize=(w, h), facecolor=SURFACE, dpi=150)
-    return f
-
-
 def save(f, name):
     C.FIGURES.mkdir(parents=True, exist_ok=True)
-    p = C.FIGURES / name
-    f.savefig(p, facecolor=SURFACE, bbox_inches="tight")
+    f.savefig(C.FIGURES / name, facecolor=SURFACE, bbox_inches="tight")
     plt.close(f)
-    print(f"  wrote figures/{name}")
+    print(f"  figures/{name}")
 
 
-# ------------------------------------------------------------------ training
+def jload(name):
+    p = C.OUT / name
+    return json.loads(p.read_text()) if p.exists() else None
 
-def training_curves(run=None):
-    run = Path(run or C.ROOT / "runs" / "cut")
-    log = run / "log.csv"
-    if not log.exists():
-        print("  (no training log yet)")
+
+# ---------------------------------------------------------------- transfer
+
+def transfer_figures():
+    d = jload(TRANSFER_10)
+    if not d:
+        print("  (no 10-seed transfer json)")
         return
-    rows = list(csv.DictReader(open(log)))
-    if len(rows) < 2:
-        return
-    it = np.array([int(r["iter"]) for r in rows])
-
-    f = fig(7.2, 4.0)
-    ax = f.add_subplot(111)
-    for i, (k, lab) in enumerate([("d_loss", "critic"), ("g_gan", "generator (adversarial)"),
-                                  ("g_nce", "PatchNCE (content)"), ("g_idt", "identity NCE")]):
-        v = np.array([float(r[k]) for r in rows])
-        ax.plot(it, v, color=SERIES[i], linewidth=2, label=lab, zorder=3)
-    # Legend only, no end-of-line labels: all four series converge into the same
-    # band below 1, so direct labels sat on top of each other. Log y because the
-    # first 50 iterations fall from 8 to 0.5 and would otherwise flatten every
-    # subsequent difference into one line.
-    ax.set_yscale("log")
-    style(ax, "iteration", "loss  (log scale)", "Training losses")
-    ax.set_xlim(it.min(), it.max())
-    leg = ax.legend(frameon=False, fontsize=9, loc="upper right", ncol=2)
-    for t in leg.get_texts():
-        t.set_color(INK2)
-    save(f, "training_losses.png")
-
-    f = fig(7.2, 3.2)
-    ax = f.add_subplot(111)
-    ec = np.array([float(r["edge_corr"]) for r in rows])
-    # Each point is one batch of 8 patches, so it is noisy: a single low reading
-    # is not a trend. Both are shown -- faint raw, bold rolling mean -- so the
-    # eye reads the trend without the raw scatter being hidden.
-    k = max(3, min(9, len(ec) // 8))
-    if len(ec) >= k:
-        sm = np.convolve(ec, np.ones(k) / k, mode="valid")
-        sm_it = it[k - 1:]
-    else:
-        sm, sm_it = ec, it
-    ax.plot(it, ec, color=SERIES[0], linewidth=1, alpha=0.32, zorder=2)
-    ax.plot(sm_it, sm, color=SERIES[0], linewidth=2.2, zorder=3)
-    ax.annotate(f"{sm[-1]:.3f}", (sm_it[-1], sm[-1]), xytext=(6, 0),
-                textcoords="offset points", color=SERIES[0], fontsize=10,
-                va="center", fontweight="bold")
-    style(ax, "iteration", "edge-map correlation",
-          f"Structure retention: input edges vs output edges "
-          f"(bold = {k}-point rolling mean)")
-    ax.set_xlim(it.min(), it.max() * 1.12)
-    ax.set_ylim(0, max(1.0, float(ec.max()) * 1.1))
-    save(f, "structure_retention.png")
-
-
-# ------------------------------------------------------------------ spectra
-
-def spectra():
-    p = C.OUT / "eval_translation.json"
-    if not p.exists():
-        print("  (no eval_translation.json yet)")
-        return
-    d = json.loads(p.read_text())
-    bands = d.get("power_spectrum_bands")
-    if not bands:
-        return
-    order = [("sem_mean", "SEM input"), ("translated_mean", "translated"),
-             ("txm_mean", "real TXM")]
-    f = fig(6.8, 4.0)
-    ax = f.add_subplot(111)
-    x = np.arange(1, len(next(iter(bands.values()))) + 1)
-    for i, (k, lab) in enumerate(order):
-        if k not in bands:
-            continue
-        y = np.array(bands[k])
-        ax.plot(x, y, color=SERIES[i], linewidth=2, marker="o", markersize=5,
-                markeredgecolor=SURFACE, markeredgewidth=1.2, label=lab, zorder=3)
-        ax.annotate(lab, (x[-1], y[-1]), xytext=(6, 0), textcoords="offset points",
-                    color=SERIES[i], fontsize=9, va="center")
-    ax.set_yscale("log")
-    style(ax, "spatial frequency band  (coarse -> fine)", "fraction of power",
-          "Radially averaged power spectrum")
-    ax.set_xlim(x.min(), x.max() * 1.22)
-    leg = ax.legend(frameon=False, fontsize=9, loc="lower left")
-    for t in leg.get_texts():
-        t.set_color(INK2)
-    save(f, "power_spectrum.png")
-
-
-# ------------------------------------------------------------------ transfer
-
-ARM_LABEL = {
-    "A_real_txm_only": "A  real TXM only",
-    "B_txm_plus_translated_sem": "B  + translated SEM",
-    "C_txm_plus_raw_sem": "C  + raw SEM",
-    "D_translated_sem_only": "D  translated SEM only",
-}
-
-
-def label_transfer():
-    p = C.OUT / "label_transfer.json"
-    if not p.exists():
-        print("  (no label_transfer.json yet)")
-        return
-    d = json.loads(p.read_text())
-    arms = [(k, v) for k, v in d["arms"].items() if isinstance(v, dict)]
+    arms = [(k, v) for k, v in d["arms"].items() if isinstance(v, dict) and "runs" in v]
     if not arms:
         return
-    names = [ARM_LABEL.get(k, k) for k, _ in arms]
-    f = fig(9.0, 4.2)
-    for pi, (metric, lo_pad) in enumerate([("auc", 0.02), ("iou", 0.02)]):
+    seeds = [r["seed"] for r in arms[0][1]["runs"]]
+    n = len(seeds)
+
+    # grouped bars, AUC and IoU in separate panels (never one shared axis)
+    f = plt.figure(figsize=(9.0, 4.3), facecolor=SURFACE, dpi=150)
+    for pi, metric in enumerate(("auc", "iou")):
         ax = f.add_subplot(1, 2, pi + 1)
         mu = np.array([v[f"{metric}_mean"] for _, v in arms])
         sd = np.array([v[f"{metric}_sd"] for _, v in arms])
         xs = np.arange(len(arms))
-        for i, (m, s) in enumerate(zip(mu, sd)):
+        for i, (m, sdv) in enumerate(zip(mu, sd)):
             ax.bar(xs[i], m, width=0.62, color=SERIES[i], zorder=3,
                    edgecolor=SURFACE, linewidth=2)
-            ax.errorbar(xs[i], m, yerr=s, color=INK2, linewidth=1.4,
-                        capsize=4, zorder=4)
-            ax.annotate(f"{m:.3f}", (xs[i], m + s), xytext=(0, 5),
-                        textcoords="offset points", ha="center",
-                        color=INK, fontsize=9, fontweight="bold")
+            ax.errorbar(xs[i], m, yerr=sdv, color=INK2, linewidth=1.4, capsize=4,
+                        zorder=4)
+            ax.annotate(f"{m:.3f}", (xs[i], m + sdv), xytext=(0, 5),
+                        textcoords="offset points", ha="center", color=INK,
+                        fontsize=9, fontweight="bold")
         style(ax, "", metric.upper(),
-              "Pixel AUC on held-out TXM" if metric == "auc" else "IoU at best threshold")
+              "Pixel AUC on held-out TXM" if metric == "auc"
+              else "IoU* (threshold tuned on test)")
         ax.set_xticks(xs)
-        ax.set_xticklabels([n.split("  ")[0] for n in names], color=INK2)
-        top = float((mu + sd).max())
-        ax.set_ylim(max(0.0, float((mu - sd).min()) - lo_pad * 4), top + lo_pad * 3)
-    f.text(0.5, -0.04, "   ".join(names), ha="center", color=INK2, fontsize=9)
+        ax.set_xticklabels([ARM_LABEL.get(k, k).split("  ")[0] for k, _ in arms],
+                           color=INK2)
+        lo, hi = float((mu - sd).min()), float((mu + sd).max())
+        ax.set_ylim(max(0, lo - 0.06), hi + 0.06)
+    f.suptitle(f"Label transfer -- {TRANSFER_LABEL}", color=INK, fontsize=11,
+               x=0.02, ha="left")
+    f.text(0.5, -0.04, "   ".join(ARM_LABEL[k] for k, _ in arms), ha="center",
+           color=INK2, fontsize=9)
     save(f, "label_transfer.png")
 
-
-# ------------------------------------------------------------------ contrast
-
-def paired_deltas():
-    """The paired view, which is the informative one.
-
-    In the grouped bar chart the per-arm error bars are seed-to-seed spread, and
-    they overlap heavily -- which reads as "no difference" even where every seed
-    moved the same way. The seeds share a cached test set, so that spread is common
-    to all arms and cancels in a difference. Plot the difference, and plot each
-    seed's own value on top of it, so consistency is visible rather than asserted.
-    """
-    p = C.OUT / "label_transfer.json"
-    if not p.exists():
-        return
-    d = json.loads(p.read_text())
-    arms = {k: v for k, v in d["arms"].items() if isinstance(v, dict) and "runs" in v}
+    # paired deltas with sign-test p-values
     base = "A_real_txm_only"
-    if base not in arms:
-        return
-    seeds = [r["seed"] for r in arms[base]["runs"]]
-    bl = {r["seed"]: r["mean_auc"] for r in arms[base]["runs"]}
-    order = ["B_txm_plus_translated_sem", "C_txm_plus_raw_sem", "D_translated_sem_only"]
-    order = [k for k in order if k in arms]
-
-    f = fig(7.4, 3.4)
+    bl = {r["seed"]: r["mean_auc"] for r in dict(arms)[base]["runs"]}
+    order = [k for k in ("B_txm_plus_translated_sem", "C_txm_plus_raw_sem",
+                         "D_translated_sem_only") if k in dict(arms)]
+    from math import comb
+    f = plt.figure(figsize=(7.8, 3.6), facecolor=SURFACE, dpi=150)
     ax = f.add_subplot(111)
     ax.axvline(0, color=MUTED, linewidth=1.2, zorder=2)
     for i, k in enumerate(order):
-        runs = {r["seed"]: r["mean_auc"] for r in arms[k]["runs"]}
+        runs = {r["seed"]: r["mean_auc"] for r in dict(arms)[k]["runs"]}
         dl = np.array([runs[s] - bl[s] for s in seeds])
+        nz = dl[dl != 0]
+        kpos = int((nz > 0).sum())
+        m = len(nz)
+        tail = sum(comb(m, j) for j in range(max(kpos, m - kpos), m + 1))
+        pv = min(1.0, 2.0 * tail / (2 ** m)) if m else 1.0
         y = len(order) - 1 - i
         col = SERIES[(i + 1) % len(SERIES)]
         ax.barh(y, dl.mean(), height=0.44, color=col, zorder=3,
                 edgecolor=SURFACE, linewidth=2)
         ax.errorbar(dl.mean(), y, xerr=dl.std(), color=INK2, linewidth=1.4,
                     capsize=4, zorder=4)
-        ax.scatter(dl, np.full_like(dl, y, dtype=float), s=42, color=INK,
-                   zorder=5, edgecolor=SURFACE, linewidth=1.2)
-        agree = (dl > 0).all() or (dl < 0).all()
-        ax.annotate(f"{dl.mean():+.4f}" + ("  all seeds agree" if agree
-                                           else "  signs disagree"),
-                    (dl.mean(), y), xytext=(0, 16), textcoords="offset points",
+        ax.scatter(dl, np.full_like(dl, y, dtype=float), s=34, color=INK, zorder=5,
+                   edgecolor=SURFACE, linewidth=1.0)
+        sig = pv < 0.05
+        ax.annotate(f"{dl.mean():+.4f}   sign test {kpos}/{m}, p={pv:.3f}"
+                    + ("  significant" if sig else "  not significant"),
+                    (dl.mean(), y), xytext=(0, 17), textcoords="offset points",
                     ha="center", color=INK, fontsize=9,
-                    fontweight="bold" if agree else "normal")
-    style(ax, "change in pixel AUC vs arm A  (paired, per seed)", "",
-          "Does adding SEM labels help? Paired against the real-TXM baseline")
+                    fontweight="bold" if sig else "normal")
+    style(ax, "change in pixel AUC vs arm A  (paired, one dot per seed)", "",
+          f"Does adding SEM labels help?  {TRANSFER_LABEL}")
     ax.set_yticks(range(len(order)))
-    ax.set_yticklabels([ARM_LABEL.get(k, k) for k in reversed(order)], color=INK2)
-    lim = 0.11
-    ax.set_xlim(-lim, lim)
-    ax.set_ylim(-0.6, len(order) - 0.25)
+    ax.set_yticklabels([ARM_LABEL[k] for k in reversed(order)], color=INK2)
+    ax.set_xlim(-0.30, 0.16)
+    ax.set_ylim(-0.6, len(order) - 0.2)
     save(f, "paired_deltas.png")
 
 
-def contrast_scatter():
-    p = C.OUT / "eval_translation.json"
-    if not p.exists():
+# ---------------------------------------------------------------- spectra
+
+def spectra_figure():
+    f = plt.figure(figsize=(7.4, 4.2), facecolor=SURFACE, dpi=150)
+    ax = f.add_subplot(111)
+    drew_ref = False
+    for i, (lab, _, _, tj) in enumerate(RUNS):
+        d = jload(tj)
+        if not d or "power_spectrum_bands" not in d:
+            continue
+        ps = d["power_spectrum_bands"]
+        x = np.arange(1, len(ps["txm_mean"]) + 1)
+        if not drew_ref:
+            ax.plot(x, ps["sem_mean"], color=MUTED, linewidth=2,
+                    linestyle=(0, (4, 3)), label="SEM input", zorder=3)
+            ax.plot(x, ps["txm_mean"], color=INK, linewidth=2.6,
+                    label="real TXM (target)", zorder=4)
+            drew_ref = True
+        ax.plot(x, ps["translated_mean"], color=SERIES[i % len(SERIES)],
+                linewidth=1.8, marker="o", markersize=4, markeredgecolor=SURFACE,
+                label=lab, zorder=3)
+    ax.set_yscale("log")
+    style(ax, "spatial frequency band  (coarse -> fine)", "fraction of power",
+          "Radially averaged power spectrum, all runs")
+    leg = ax.legend(frameon=False, fontsize=8.5, loc="lower left", ncol=2)
+    for t in leg.get_texts():
+        t.set_color(INK2)
+    save(f, "power_spectrum.png")
+
+
+# ---------------------------------------------------------------- identity
+
+def identity_figure():
+    labs, vals = [], []
+    for lab, _, ij, _ in RUNS:
+        d = jload(ij)
+        if d:
+            labs.append(lab)
+            vals.append(d["mean_pearson"])
+    if not vals:
         return
-    d = json.loads(p.read_text())
-    rows = d.get("contrast") or []
+    # calibration ladder, measured in eval_identity.py
+    ladder = [("blur s1", 0.9064), ("blur s2", 0.8607), ("blur s4", 0.7988),
+              ("blur s8", 0.7021)]
+    f = plt.figure(figsize=(7.6, 3.8), facecolor=SURFACE, dpi=150)
+    ax = f.add_subplot(111)
+    xs = np.arange(len(labs))
+    for i, v in enumerate(vals):
+        ax.bar(xs[i], v, width=0.6, color=SERIES[i % len(SERIES)], zorder=3,
+               edgecolor=SURFACE, linewidth=2)
+        ax.annotate(f"{v:.3f}", (xs[i], v), xytext=(0, 4),
+                    textcoords="offset points", ha="center", color=INK, fontsize=9,
+                    fontweight="bold")
+    for nm, y in ladder:
+        ax.axhline(y, color=MUTED, linewidth=1, linestyle=(0, (3, 3)), zorder=2)
+        ax.annotate(nm, (len(labs) - 0.45, y), xytext=(6, -3),
+                    textcoords="offset points", color=INK2, fontsize=8)
+    style(ax, "", "pearson, G(y) vs y on held-out TXM",
+          "Distortion the generator inflicts on input already in its target domain")
+    ax.set_xticks(xs)
+    ax.set_xticklabels(labs, color=INK2, fontsize=8.5, rotation=12, ha="right")
+    ax.set_ylim(0.5, 1.0)
+    ax.set_xlim(-0.6, len(labs) + 0.5)
+    save(f, "identity_distortion.png")
+
+
+# ---------------------------------------------------------------- training
+
+def training_figures(run="cut_idtfix", label="+pixel identity"):
+    lg = C.ROOT / "runs" / run / "log.csv"
+    if not lg.exists():
+        return
+    rows = list(csv.DictReader(open(lg)))
+    if len(rows) < 3:
+        return
+    it = np.array([int(r["iter"]) for r in rows])
+    f = plt.figure(figsize=(7.4, 4.0), facecolor=SURFACE, dpi=150)
+    ax = f.add_subplot(111)
+    for i, (k, nm) in enumerate([("d_loss", "critic"),
+                                 ("g_gan", "generator (adversarial)"),
+                                 ("g_nce", "PatchNCE (content)"),
+                                 ("g_idt", "identity NCE")]):
+        if k not in rows[0]:
+            continue
+        ax.plot(it, [float(r[k]) for r in rows], color=SERIES[i], linewidth=2,
+                label=nm, zorder=3)
+    ax.set_yscale("log")
+    style(ax, "iteration", "loss  (log scale)", f"Training losses -- {label} run")
+    leg = ax.legend(frameon=False, fontsize=9, loc="upper right", ncol=2)
+    for t in leg.get_texts():
+        t.set_color(INK2)
+    save(f, "training_losses.png")
+
+
+# ---------------------------------------------------------------- contrast
+
+def contrast_figure(tj="idtfix_translation.json", label="+pixel identity"):
+    d = jload(tj)
+    rows = (d or {}).get("contrast") or []
     if not rows:
-        print("  (no contrast rows)")
         return
     b = np.array([r["sem_mean_contrast"] for r in rows])
     a = np.array([r["translated_mean_contrast"] for r in rows])
-    f = fig(5.4, 5.0)
+    f = plt.figure(figsize=(5.2, 5.0), facecolor=SURFACE, dpi=150)
     ax = f.add_subplot(111)
     lim = float(max(abs(b).max(), abs(a).max())) * 1.25
     ax.axhline(0, color=MUTED, linewidth=0.8, zorder=1)
     ax.axvline(0, color=MUTED, linewidth=0.8, zorder=1)
     ax.plot([-lim, lim], [-lim, lim], color=MUTED, linewidth=1,
             linestyle=(0, (4, 3)), zorder=2)
-    ax.scatter(b, a, s=70, color=SERIES[0], edgecolor=SURFACE, linewidth=1.5, zorder=3)
-    for r, xx, yy in zip(rows, b, a):
-        ax.annotate(r["image"][:16], (xx, yy), xytext=(6, 4),
-                    textcoords="offset points", color=INK2, fontsize=7)
-    style(ax, "crack contrast in SEM input", "crack contrast after translation",
-          "Marked cracks stay darker than their surroundings")
+    ax.scatter(b, a, s=64, color=SERIES[0], edgecolor=SURFACE, linewidth=1.4,
+               zorder=3)
+    style(ax, "crack contrast in SEM input", "after translation",
+          f"Marked cracks keep their contrast -- {label}")
     ax.set_xlim(-lim, lim)
     ax.set_ylim(-lim, lim)
     ax.set_aspect("equal")
@@ -275,11 +274,11 @@ def contrast_scatter():
 
 def main():
     print("figures:")
-    training_curves()
-    spectra()
-    label_transfer()
-    paired_deltas()
-    contrast_scatter()
+    transfer_figures()
+    spectra_figure()
+    identity_figure()
+    training_figures()
+    contrast_figure()
 
 
 if __name__ == "__main__":

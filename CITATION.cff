@@ -3,11 +3,20 @@ message: "If you use this software, please cite it as below."
 title: "sem2txm"
 abstract: >-
   An unpaired SEM-to-TXM image translator for cracked 316L stainless steel, built to
-  test whether hand-drawn SEM crack labels can be carried across modalities to train a
-  TXM crack detector. A windowed-attention generator is trained with a contrastive
-  content objective so that output structure stays registered to the input. Reads its
-  data from the sem-crack-detector and TXM_Crack_Detection_Pipeline repositories rather
-  than shipping its own copy.
+  test whether hand-drawn SEM crack labels can be carried across modalities to train
+  a TXM crack detector. The result is negative and the repository is organised around
+  establishing that precisely: measured against two registered SEM/TXM pairs, the
+  translated image is a worse predictor of the real TXM than the raw SEM, and worse
+  than a blurred copy of it. Four interventions (bounding pixel distortion, weakening
+  the content constraint, removing the critic's access to intensity statistics, and
+  matching the two modalities' physical scale) each fixed what they targeted and none
+  changed the outcome. What does hold: hand-drawn SEM masks register on the
+  translation exactly, and marked cracks retain their local contrast proportionally.
+  Includes a validated cross-modality registration pipeline that refuses matches at
+  the measured independence floor, and recovery of the SEM pixel size from the
+  instrument's burned-in scale bar, cross-checked against FEI metadata to 0.07%.
+  Reads its data from the sem-crack-detector and TXM_Crack_Detection_Pipeline
+  repositories rather than shipping its own copy.
 type: software
 authors:
   - family-names: Zhang
@@ -15,11 +24,12 @@ authors:
     # affiliation and orcid intentionally left blank -- fill these in before citing.
 repository-code: "https://github.com/jzhang29-max/sem2txm"
 license: MIT
-version: "0.1.0"
+version: "1.0.0"
 keywords:
   - scanning electron microscopy
   - transmission X-ray microscopy
   - unpaired image translation
   - domain adaptation
   - crack detection
+  - negative result
   - materials characterisation

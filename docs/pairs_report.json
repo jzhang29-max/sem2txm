@@ -1,0 +1,101 @@
+{
+ "model_iter": 5000,
+ "pairs": [
+  {
+   "name": "B2",
+   "sem": "/Users/jiamingzhang/Desktop/B2/260708_316_H_b2_front_CBS_002.tif",
+   "txm": "/Users/jiamingzhang/Desktop/B2/Average_mosaic_260618_b2_343_75_LARGE_idx00000_mosaictileAA_img001of010.xrm.bim.bim.tif",
+   "coarse": {
+    "ratio": 2.5,
+    "angle": 0.0,
+    "nmi": 1.02,
+    "at": [
+     1711,
+     1392
+    ],
+    "template": [
+     819,
+     1229
+    ],
+    "ncc": 0.3179,
+    "margin_over_next": 0.0005
+   },
+   "refined": {
+    "ok": false,
+    "reason": "no consensus set"
+   },
+   "advice": "Registration failed. No paired loss is available; stay unpaired.",
+   "sem_um_per_px": 0.10376600000000001,
+   "sem_scale_source": "metadata",
+   "txm_um_per_px": null,
+   "fidelity": {
+    "predicted TXM": {
+     "ssim": 0.0888,
+     "psnr": 12.58,
+     "pearson": -0.0654,
+     "nmi": 1.0075
+    },
+    "input SEM (do nothing)": {
+     "ssim": 0.3345,
+     "psnr": 17.5,
+     "pearson": 0.394,
+     "nmi": 1.0132
+    },
+    "blurred SEM": {
+     "ssim": 0.3955,
+     "psnr": 17.96,
+     "pearson": 0.4108,
+     "nmi": 1.0154
+    }
+   }
+  },
+  {
+   "name": "B3",
+   "sem": "/Users/jiamingzhang/Desktop/B3/260622_316_amb_b3_CBS_01.tif",
+   "txm": "/Users/jiamingzhang/Desktop/B3/Average_mosaic_260620_b3_388_13um_LARGE_2_idx00000_mosaictileAA_img001of010.xrm.bim.bim.tif",
+   "coarse": {
+    "ratio": 2.5,
+    "angle": -3.0,
+    "nmi": 1.025,
+    "at": [
+     1223,
+     1212
+    ],
+    "template": [
+     1376,
+     2196
+    ],
+    "ncc": 0.167,
+    "margin_over_next": null
+   },
+   "refined": {
+    "ok": false,
+    "reason": "no consensus set"
+   },
+   "advice": "Registration failed. No paired loss is available; stay unpaired.",
+   "sem_um_per_px": 0.042154899999999995,
+   "sem_scale_source": "metadata",
+   "txm_um_per_px": null,
+   "fidelity": {
+    "predicted TXM": {
+     "ssim": 0.2055,
+     "psnr": 14.68,
+     "pearson": 0.3256,
+     "nmi": 1.0195
+    },
+    "input SEM (do nothing)": {
+     "ssim": 0.3659,
+     "psnr": 15.17,
+     "pearson": 0.4519,
+     "nmi": 1.0234
+    },
+    "blurred SEM": {
+     "ssim": 0.5188,
+     "psnr": 15.64,
+     "pearson": 0.4764,
+     "nmi": 1.0245
+    }
+   }
+  }
+ ]
+}

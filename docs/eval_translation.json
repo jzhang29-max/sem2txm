@@ -1,27 +1,27 @@
 {
  "ckpt_iter": 5000,
- "c2st_auc": 0.9673,
- "c2st_auc_sd": 0.0121,
+ "c2st_auc": 0.8688,
+ "c2st_auc_sd": 0.0566,
  "c2st_top_descriptors": [
   [
-   "p99",
-   0.6504
-  ],
-  [
    "power_band2",
-   0.6213
+   0.6442
   ],
   [
    "power_band3",
-   0.5942
+   0.625
   ],
   [
-   "p75",
-   0.5941
+   "power_band4",
+   0.5908
   ],
   [
-   "p25",
-   0.5857
+   "power_band5",
+   0.5796
+  ],
+  [
+   "power_band6",
+   0.5791
   ]
  ],
  "power_spectrum_bands": {
@@ -36,14 +36,14 @@
    0.00048
   ],
   "translated_mean": [
-   0.45829,
-   0.31111,
-   0.14831,
-   0.06068,
-   0.01627,
-   0.00329,
-   0.00118,
-   0.00087
+   0.46629,
+   0.30593,
+   0.14558,
+   0.06057,
+   0.01616,
+   0.00326,
+   0.00126,
+   0.00095
   ],
   "txm_mean": [
    0.4606,
@@ -63,9 +63,9 @@
    "std": 0.1324
   },
   "translated": {
-   "median": 0.6363,
-   "iqr": 0.1744,
-   "std": 0.1182
+   "median": 0.695,
+   "iqr": 0.157,
+   "std": 0.1298
   },
   "sem_source": {
    "median": 0.6275,
@@ -78,65 +78,65 @@
    "image": "260622_316_H_b2_back_CBS_01",
    "n_regions": 9,
    "sem_mean_contrast": -0.2885,
-   "translated_mean_contrast": -0.1395,
-   "frac_still_darker": 0.8889,
-   "pearson": 0.9659
+   "translated_mean_contrast": -0.1131,
+   "frac_still_darker": 1.0,
+   "pearson": 0.7645
   },
   {
    "image": "260622_316_H_b2_front_CBS_01",
    "n_regions": 6,
    "sem_mean_contrast": -0.05,
-   "translated_mean_contrast": -0.0231,
-   "frac_still_darker": 0.3333,
-   "pearson": 0.8374
+   "translated_mean_contrast": -0.0173,
+   "frac_still_darker": 0.5,
+   "pearson": 0.8577
   },
   {
    "image": "260622_316_H_b2_front_CBS_03",
    "n_regions": 8,
    "sem_mean_contrast": -0.0747,
-   "translated_mean_contrast": -0.0328,
+   "translated_mean_contrast": -0.0277,
    "frac_still_darker": 0.625,
-   "pearson": 0.9348
+   "pearson": 0.9108
   },
   {
    "image": "260622_316_H_b2_front_CBS_04",
    "n_regions": 4,
    "sem_mean_contrast": 0.1641,
-   "translated_mean_contrast": 0.1173,
+   "translated_mean_contrast": 0.1039,
    "frac_still_darker": 0.0,
-   "pearson": 0.8779
+   "pearson": 0.3068
   },
   {
    "image": "260708_316_H_b2_front_CBS_001",
    "n_regions": 10,
    "sem_mean_contrast": 0.0401,
-   "translated_mean_contrast": 0.0211,
+   "translated_mean_contrast": 0.0177,
    "frac_still_darker": 0.1,
-   "pearson": 0.533
+   "pearson": 0.2264
   },
   {
    "image": "260708_316_H_b2_front_CBS_002",
    "n_regions": 7,
    "sem_mean_contrast": 0.0039,
-   "translated_mean_contrast": 0.0087,
-   "frac_still_darker": 0.4286,
-   "pearson": 0.9756
+   "translated_mean_contrast": -0.0143,
+   "frac_still_darker": 0.2857,
+   "pearson": 0.9301
   },
   {
    "image": "260708_316_H_b2_front_CBS_003",
    "n_regions": 14,
    "sem_mean_contrast": -0.0247,
-   "translated_mean_contrast": -0.0071,
-   "frac_still_darker": 0.5714,
-   "pearson": 0.9687
+   "translated_mean_contrast": -0.0327,
+   "frac_still_darker": 0.6429,
+   "pearson": 0.9589
   },
   {
    "image": "260708_316_H_b2_front_CBS_004",
    "n_regions": 10,
    "sem_mean_contrast": 0.1691,
-   "translated_mean_contrast": 0.0652,
-   "frac_still_darker": 0.2,
-   "pearson": 0.9068
+   "translated_mean_contrast": 0.0411,
+   "frac_still_darker": 0.1,
+   "pearson": 0.8782
   }
  ]
 }
