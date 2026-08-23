@@ -210,12 +210,66 @@ class Generator(nn.Module):
 
 # ---------------------------------------------------------------- critic
 
+def gaussian_kernel1d(sigma, device=None):
+    r = max(1, int(3 * sigma))
+    x = torch.arange(-r, r + 1, dtype=torch.float32, device=device)
+    k = torch.exp(-(x ** 2) / (2 * sigma ** 2))
+    return k / k.sum()
+
+
+class CriticInput(nn.Module):
+    """What the critic is allowed to see.
+
+    Measured problem: with the raw image, a 3-layer PatchGAN on flat-fielded data
+    (IQR ~0.02) satisfies itself on the INTENSITY DISTRIBUTION. `p99` was its
+    strongest single separator in every run, and the consequence was that the model
+    which scored best against real TXM was the one that merely remapped contrast
+    (affine R^2 0.855) while the one that genuinely changed texture scored worst
+    (C2ST 0.9991). The critic was never made to learn texture.
+
+    `highpass` subtracts a Gaussian and then standardises per sample, which removes
+    the mean level AND the contrast scale -- so a pure contrast remap becomes
+    invisible and texture is the only thing left to discriminate on. `lcn` divides
+    by a LOCAL standard deviation instead, which also flattens spatially varying
+    contrast. `none` is the old behaviour.
+    """
+
+    def __init__(self, mode="highpass", sigma=4.0, eps=1e-5):
+        super().__init__()
+        self.mode, self.sigma, self.eps = mode, sigma, eps
+        if mode != "none":
+            self.register_buffer("k", gaussian_kernel1d(sigma), persistent=False)
+
+    def _blur(self, x):
+        k = self.k.to(x.dtype)
+        r = (k.numel() - 1) // 2
+        x = F.pad(x, (r, r, 0, 0), mode="reflect")
+        x = F.conv2d(x, k.view(1, 1, 1, -1))
+        x = F.pad(x, (0, 0, r, r), mode="reflect")
+        return F.conv2d(x, k.view(1, 1, -1, 1))
+
+    def forward(self, x):
+        if self.mode == "none":
+            return x
+        blur = self._blur(x)
+        h = x - blur
+        if self.mode == "lcn":
+            var = self._blur((x - blur) ** 2)
+            return h / (var.clamp_min(0).sqrt() + self.eps)
+        # highpass: kill the global contrast scale too, per sample
+        sd = h.flatten(1).std(dim=1).view(-1, 1, 1, 1)
+        return h / (sd + self.eps)
+
+
 class PatchDiscriminator(nn.Module):
     """70x70 PatchGAN with spectral norm -- judges local texture, not layout,
-    which is what we want: the layout has to come from the input, not the critic."""
+    which is what we want: the layout has to come from the input, not the critic.
 
-    def __init__(self, ch=64, layers=3):
+    `input_mode` controls what it is shown; see CriticInput."""
+
+    def __init__(self, ch=64, layers=3, input_mode="none", input_sigma=4.0):
         super().__init__()
+        self.pre = CriticInput(input_mode, input_sigma)
         sn = nn.utils.parametrizations.spectral_norm
         seq = [sn(nn.Conv2d(1, ch, 4, 2, 1)), nn.LeakyReLU(0.2, True)]
         m = 1
@@ -227,7 +281,7 @@ class PatchDiscriminator(nn.Module):
         self.net = nn.Sequential(*seq)
 
     def forward(self, x):
-        return self.net(x)
+        return self.net(self.pre(x))
 
 
 # ---------------------------------------------------------------- PatchNCE

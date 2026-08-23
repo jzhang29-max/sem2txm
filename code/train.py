@@ -184,6 +184,17 @@ def main():
                          "detail, and a plain L1 is dominated by low frequencies "
                          "that were never the problem.")
     ap.add_argument("--lambda-gan", type=float, default=1.0)
+    ap.add_argument("--critic-input", default="none",
+                    choices=("none", "highpass", "lcn"),
+                    help="what the critic is shown. 'none' reproduces the runs in "
+                         "the README, where the critic satisfied itself on the "
+                         "intensity distribution (p99 its strongest separator) so "
+                         "the best-scoring model was a contrast remap. 'highpass' "
+                         "subtracts a Gaussian and standardises per sample, which "
+                         "makes a pure contrast remap invisible to it (measured: "
+                         "13% of the critic's input changes under a remap with "
+                         "'none', 0.01% with 'highpass').")
+    ap.add_argument("--critic-sigma", type=float, default=4.0)
     ap.add_argument("--nce-patches", type=int, default=256)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--seed", type=int, default=0)
@@ -206,7 +217,8 @@ def main():
     print(f"device={dev}  SEM patches={len(sem)}  TXM patches={len(txm)}")
 
     G = Generator(args.ch, args.depth, args.window).to(dev)
-    D = PatchDiscriminator(args.ch).to(dev)
+    D = PatchDiscriminator(args.ch, input_mode=args.critic_input,
+                           input_sigma=args.critic_sigma).to(dev)
     H = ProjectionHead(n_patches=args.nce_patches).to(dev)
     nparam = sum(p.numel() for p in G.parameters())
     print(f"generator parameters: {nparam/1e6:.2f} M")
