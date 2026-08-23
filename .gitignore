@@ -3,20 +3,13 @@
 cache/
 runs/
 out/
-figures/*.png
-!figures/.gitkeep
 
-# Except the figures the README points at, which are committed so the README
-# renders on GitHub without anyone having to train anything first.
-!figures/preprocessing.png
-!figures/translation_examples.png
-!figures/full_frame.png
-!figures/training_losses.png
-!figures/structure_retention.png
-!figures/power_spectrum.png
-!figures/label_transfer.png
-!figures/paired_deltas.png
-!figures/crack_contrast.png
+# figures/ IS tracked. It was previously ignored with an explicit per-file
+# allow-list, and that broke twice: a figure added to the README after the list was
+# written (paired_deltas.png, then model_comparison.png and three_way_comparison.png)
+# renders as a broken image on GitHub, and nothing catches it. The whole top level
+# is small -- well under 10 MB -- so tracking it wholesale removes the failure mode.
+# Only the regenerable panel dump below is excluded.
 
 # The databar panels are evidence for the scale recovery, but 51 of them is
 # clutter. Keep the one frame the README quotes numbers from, so that claim stays
