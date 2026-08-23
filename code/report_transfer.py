@@ -15,6 +15,25 @@ import numpy as np
 
 import config as C
 
+
+def sign_test_p(deltas):
+    """Two-sided binomial sign test on paired differences.
+
+    Replaces the qualitative "all seeds agree" this script used to print. With 3
+    seeds, three same-sign differences occur 25% of the time under the null, so
+    "all seeds agree" was being read as evidence when it was barely better than a
+    coin flip -- and it duly evaporated at 10 seeds. With n seeds the two-sided p
+    for k of n sharing a sign is what should be quoted instead.
+    """
+    d = np.asarray([x for x in deltas if x != 0.0], float)
+    n = len(d)
+    if n == 0:
+        return 1.0, 0, 0
+    k = int((d > 0).sum())
+    from math import comb
+    tail = sum(comb(n, i) for i in range(max(k, n - k), n + 1))
+    return min(1.0, 2.0 * tail / (2 ** n)), k, n
+
 BASE = "A_real_txm_only"
 LABEL = {
     "A_real_txm_only": "A  real TXM only",
@@ -50,11 +69,11 @@ def main():
                   f"{'--':>22s} {iou.mean():8.4f} +-{iou.std():.4f}")
             continue
         dl = np.array([runs[s]["mean_auc"] - base[s]["mean_auc"] for s in seeds])
-        # sign agreement across seeds is the honest small-n significance statement
-        same = "all seeds agree" if (dl > 0).all() or (dl < 0).all() else "signs disagree"
+        pv, kpos, n = sign_test_p(dl)
+        verdict = ("significant" if pv < 0.05 else "not significant")
         print(f"{LABEL.get(k,k):24s} {auc.mean():8.4f} +-{auc.std():.4f} "
               f"{dl.mean():+9.4f} +-{dl.std():.4f} {iou.mean():8.4f} +-{iou.std():.4f}")
-        print(f"{'':24s} {'':16s}   per seed {np.round(dl,4).tolist()}  {same}")
+        print(f"{'':24s} sign test {kpos}/{n} positive, p={pv:.3f} -> {verdict}")
 
     # The decisive comparison is not either arm against A but B against C: both add
     # SEM crack labels, and they differ ONLY in whether those labels arrived through
@@ -64,11 +83,11 @@ def main():
         br = {r["seed"]: r["mean_auc"] for r in arms[bk]["runs"]}
         cr = {r["seed"]: r["mean_auc"] for r in arms[ck]["runs"]}
         dl = np.array([br[s] - cr[s] for s in seeds])
-        verdict = ("consistent" if (dl > 0).all() or (dl < 0).all()
-                   else "NOT RESOLVED -- signs disagree across seeds")
+        pv, kpos, n = sign_test_p(dl)
         print(f"\nB minus C (translated vs raw SEM, the control that matters):")
-        print(f"  {dl.mean():+.4f} +-{dl.std():.4f}   per seed "
-              f"{np.round(dl,4).tolist()}   {verdict}")
+        print(f"  {dl.mean():+.4f} +-{dl.std():.4f}   sign test {kpos}/{n} positive, "
+              f"p={pv:.3f}")
+        print(f"  -> {'SIGNIFICANT' if pv < 0.05 else 'NOT SIGNIFICANT'} at 0.05")
 
     a = np.array([base[s]["mean_auc"] for s in seeds])
     print(f"\nSeed-to-seed spread of the baseline alone: +-{a.std():.4f} AUC.")
