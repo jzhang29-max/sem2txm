@@ -402,6 +402,56 @@ being its strongest single separator. A run at `--lambda-nce 0.25` tests exactly
 that, and the trade is legible: `affine_r2` should fall (genuinely different
 output) while crack-contrast correlation falls too (less geometry retained).
 
+### 9. Weakening the content constraint: hypothesis refuted
+
+Section 8 proposed that PatchNCE was too strong -- that requiring output patches to
+correspond to input patches forbids the texture reorganisation TXM demands -- and
+predicted a clean trade: weaken it and appearance improves while geometry suffers.
+A full 5000-iteration run at `--lambda-nce 0.25`, everything else identical:
+
+| | original (nce 1.0) | + pixel identity | **rebalanced (nce 0.25)** |
+|---|---|---|---|
+| held-out identity SSIM | 0.5928 | **0.8311** | 0.5765 |
+| held-out identity pearson | 0.7178 | **0.8705** | 0.6481 |
+| C2ST vs real TXM (0.5 ideal) | 0.9673 | **0.8688** | **0.9991** |
+| translated IQR (target 0.1922) | 0.1744 | 0.1570 | **0.0804** |
+| crack contrast r | **0.921** | 0.868 | 0.868 |
+| affine R^2, per 256 px patch | 0.790 ±0.138 | 0.855 ±0.045 | **0.662 ±0.059** |
+
+**The prediction was wrong.** Weakening the constraint did make the output less of a
+rescale (affine R^2 0.855 -> 0.662), but appearance got *worse*, not better: the
+two-sample AUC went to **0.9991**, essentially perfect separability, with contrast
+washing out to less than half the target. It did not buy TXM-like texture. It bought
+a different, worse image.
+
+![SEM input, three models, and real TXM: all three models keep the SEM's faceted grain texture and fill the crack with grey; real TXM is soft and mottled](figures/three_way_comparison.png)
+
+And the pattern across all three runs is the interesting part:
+
+- the model that looks **most** like TXM (C2ST 0.869) is the **most** rescale-like
+  (affine R^2 0.855)
+- the model that is **least** rescale-like (0.662) looks **least** like TXM (0.9991)
+
+Which says something about the setup rather than the weights. **In this
+configuration, "looks like TXM" is achieved by matching contrast statistics, not by
+generating TXM-like texture.** The critic is rewarding the intensity distribution --
+consistent with `p99` being its strongest single separator in every run measured --
+so a model that simply remaps contrast well is the one that wins, and any move
+towards genuinely different texture is scored as worse.
+
+That makes the critic the thing to fix, not the content weight. A 3-layer PatchGAN
+of 0.66 M parameters, on flat-fielded images whose IQR is ~0.02, can satisfy itself
+on intensity statistics alone. The concrete change is a critic that **cannot** use
+them: feed it locally-normalised or high-pass-filtered input, or make it
+multi-scale, so texture is the only thing left to discriminate on. That is the next
+experiment, and it is not one this repo has run.
+
+**A caveat on affine R^2 itself:** it is strongly region-dependent -- the same model
+measures 0.32 on one field and 0.68 on another -- so `./run compare` now reports the
+per-patch mean and spread rather than one crop's number, and the single-crop values
+quoted in section 8 should be read as illustrative rather than as the model's
+property.
+
 ### 4. Geometry: preserved, and this part is solid
 
 ![SEM input beside its translation: crack outline, grain network and pores in the same places, no visible tile seams](figures/full_frame.png)

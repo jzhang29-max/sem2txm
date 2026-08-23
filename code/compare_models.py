@@ -67,12 +67,20 @@ def main():
             m = np.array(im)
         if m.shape == x.shape:
             mask = (m[y0:y0 + S, x0:x0 + S] == 1)
+            print(f"crack mask in crop: {int(mask.sum())} px")
+        else:
+            print(f"mask shape {m.shape} != image {x.shape}; crack_r unavailable")
+    else:
+        print(f"no correction mask for {args.sem}; crack_r unavailable")
     x = x[y0:y0 + S, x0:x0 + S]
 
     panels = [("SEM input", x)]
     rows = []
     for spec in args.ckpts:
-        label, _, path = spec.partition("=")
+        # rpartition, not partition: labels legitimately contain "=" (a run is
+        # named by the hyperparameter it changed, e.g. "nce=0.25"), and splitting
+        # on the FIRST one made the path start mid-label.
+        label, _, path = spec.rpartition("=")
         if not path:
             path, label = label, Path(label).parent.name
         p = Path(path)
@@ -83,7 +91,16 @@ def main():
             continue
         G, ck = load_generator(p, dev)
         y = translate(G, x, dev, 512, 256, 4, offsets=2)
+        # affine_r2 over the whole crop AND over sub-patches: it is strongly
+        # region-dependent (0.32 on one field, 0.68 on another for the same model),
+        # so a single number from a single crop is not a property of the model.
         ar2 = affine_r2(x, y)
+        sub = []
+        for yy in range(0, S - 255, 256):
+            for xx in range(0, S - 255, 256):
+                sub.append(affine_r2(x[yy:yy + 256, xx:xx + 256],
+                                     y[yy:yy + 256, xx:xx + 256]))
+        sub = [v for v in sub if v == v]
         cr = None
         if mask is not None and mask.sum() > 500:
             b = crack_contrast(x, mask, rng=np.random.default_rng(0))
@@ -93,6 +110,8 @@ def main():
                 cr = float(np.corrcoef([t[0] for t in b][:k],
                                        [t[0] for t in a][:k])[0, 1])
         rows.append({"label": label, "iter": ck["iter"], "affine_r2": round(ar2, 4),
+                     "affine_r2_patch_mean": round(float(np.mean(sub)), 4) if sub else None,
+                     "affine_r2_patch_sd": round(float(np.std(sub)), 4) if sub else None,
                      "crack_r": None if cr is None else round(cr, 4),
                      "std": round(float(y.std()), 4)})
         panels.append((f"{label} (it {ck['iter']})", y))
@@ -114,11 +133,15 @@ def main():
     sheet.save(args.out)
     print(f"wrote {args.out}\n")
 
-    print(f"{'model':30s} {'affine_r2':>10s} {'crack_r':>9s} {'std':>8s}")
-    print(f"{'(want)':30s} {'LOW':>10s} {'HIGH':>9s}")
+    print(f"{'model':22s} {'affR2':>7s} {'affR2 per-patch':>17s} {'crack_r':>9s} "
+          f"{'std':>8s}")
+    print(f"{'(want)':22s} {'LOW':>7s} {'LOW':>17s} {'HIGH':>9s}")
     for r in rows:
         cr = "n/a" if r["crack_r"] is None else f"{r['crack_r']:.4f}"
-        print(f"{r['label'][:30]:30s} {r['affine_r2']:10.4f} {cr:>9s} {r['std']:8.4f}")
+        pm = ("n/a" if r["affine_r2_patch_mean"] is None
+              else f"{r['affine_r2_patch_mean']:.3f}+-{r['affine_r2_patch_sd']:.3f}")
+        print(f"{r['label'][:22]:22s} {r['affine_r2']:7.4f} {pm:>17s} {cr:>9s} "
+              f"{r['std']:8.4f}")
     print(f"{'SEM input':30s} {'--':>10s} {'--':>9s} {x.std():8.4f}")
     print(f"{'real TXM':30s} {'--':>10s} {'--':>9s} {panels[-1][1].std():8.4f}")
 
