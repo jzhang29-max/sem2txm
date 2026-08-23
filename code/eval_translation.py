@@ -152,6 +152,14 @@ def main():
     ap.add_argument("--ckpt", default=str(C.ROOT / "runs" / "cut" / "ckpt.pt"))
     ap.add_argument("--n-patches", type=int, default=1200)
     ap.add_argument("--device", default="auto")
+    ap.add_argument("--bank-suffix", default="",
+                    help="which patch bank to draw SEM from. MUST match what the "
+                         "checkpoint trained on: a model trained on _s29 (SEM "
+                         "downsampled 2.9x) fed 1:1 patches is being shown the wrong "
+                         "physical scale, which is what this flag exists to prevent.")
+    ap.add_argument("--sem-downsample", type=float, default=1.0,
+                    help="downsample whole SEM frames by this in the crack-contrast "
+                         "section, to match the model's training scale")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default=str(C.OUT / "eval_translation.json"))
     args = ap.parse_args()
@@ -163,10 +171,13 @@ def main():
     rng = np.random.default_rng(args.seed)
     res = {"ckpt_iter": ck["iter"]}
 
-    sem = np.load(C.CACHE / "bank_sem.npy", mmap_mode="r")
-    txm = np.load(C.CACHE / "bank_txm.npy", mmap_mode="r")
-    sem_src = [s[0] for s in json.loads((C.CACHE / "bank_sem_src.json").read_text())]
-    txm_src = [s[0] for s in json.loads((C.CACHE / "bank_txm_src.json").read_text())]
+    sfx = args.bank_suffix
+    sem = np.load(C.CACHE / f"bank_sem{sfx}.npy", mmap_mode="r")
+    txm = np.load(C.CACHE / f"bank_txm{sfx}.npy", mmap_mode="r")
+    sem_src = [s[0] for s in json.loads((C.CACHE / f"bank_sem{sfx}_src.json").read_text())]
+    txm_src = [s[0] for s in json.loads((C.CACHE / f"bank_txm{sfx}_src.json").read_text())]
+    if sfx:
+        print(f"using bank suffix '{sfx}'")
 
     n = args.n_patches
     si = rng.choice(len(sem), min(n, len(sem)), replace=False)
@@ -209,7 +220,9 @@ def main():
         print(f"   {k:12s} {v}")
 
     print("4. crack contrast retention ...")
-    res["contrast"] = contrast_report(G, dev, rng)
+    res["bank_suffix"] = args.bank_suffix
+    res["sem_downsample"] = args.sem_downsample
+    res["contrast"] = contrast_report(G, dev, rng, downsample=args.sem_downsample)
 
     C.OUT.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w") as f:
@@ -217,7 +230,7 @@ def main():
     print(f"-> {args.out}")
 
 
-def contrast_report(G, dev, rng, max_images=8):
+def contrast_report(G, dev, rng, max_images=8, downsample=1.0):
     """Translate whole frames that have hand-drawn masks, and compare the local
     contrast of each marked crack region before and after."""
     from PIL import Image
@@ -239,11 +252,24 @@ def contrast_report(G, dev, rng, max_images=8):
             continue
         # Reuse a cached whole-frame translation when one exists -- retranslating a
         # 25 MP frame to measure it is minutes of work for an identical result.
+        # Only reuse a cached translation when this model runs at 1:1; a cache
+        # written by a different checkpoint at a different scale would silently be
+        # attributed to this one. That happened once: the scale-matched run reported
+        # the high-pass model's crack contrast because it never wrote its own.
         cached = C.CACHE / "translated" / f"{e['stem']}.npy"
-        if cached.exists():
+        if downsample == 1.0 and cached.exists():
             out = np.load(cached).astype(np.float32) / 255.0
         else:
-            out = translate(G, img, dev)
+            src_img = img
+            if downsample != 1.0:
+                from skimage.transform import rescale as _rs
+                src_img = _rs(img, 1.0 / downsample, anti_aliasing=True,
+                              preserve_range=True).astype(np.float32)
+            out = translate(G, src_img, dev)
+            if downsample != 1.0:
+                from skimage.transform import resize as _rz
+                out = _rz(out, img.shape, order=1, preserve_range=True
+                          ).astype(np.float32)
         before = crack_contrast(img, crack, rng=rng)
         after = crack_contrast(out, crack, rng=rng)
         if not before or not after:

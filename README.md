@@ -291,7 +291,7 @@ does not imply low pixel distortion, and nothing was measuring the latter.
 | **+pixel identity** | **0.8688** | 35.1% |
 | nce=0.25 | 0.9991 | **29.4%** |
 | high-pass critic | 0.9993 | 46.3% |
-| scale-matched | 0.9990 | — |
+| scale-matched | **1.0000** | 59.0% |
 | *SEM, do nothing* | — | *100%* |
 
 At best 0.869 the outputs remain trivially separable from real TXM. Every run beats
@@ -316,7 +316,7 @@ added noise is uncorrelated with the input's own fine detail by construction.
 | the identity loss did not bound pixel distortion | 4 px blur → ~1 px (pearson 0.718 → 0.871) | **no** |
 | the content constraint blocked texture transfer | affine R² 0.661 → 0.450 | **no** — appearance got worse (C2ST → 0.999) |
 | the critic rewarded contrast, not texture | best crack retention, 0.963 | **no** — level match broke, C2ST → 0.9993 |
-| the domains were at mismatched physical scale | scale matched, confirmed by re-registration at ratio 1.0 | **no** — paired fidelity fell to +0.269 |
+| the domains were at mismatched physical scale | scale matched, confirmed by re-registration at ratio 1.0 | **no** — C2ST reached 1.0000, paired fidelity fell to +0.269 |
 
 Each did what it targeted. None moved the outcome. **That consistency is the
 result:** on this data, with this objective family, the barrier is not in any single
@@ -518,6 +518,7 @@ Recorded because the reasoning that failed is part of the result.
 | affine R² 0.265 / 0.182 showed two runs were less rescale-like | Those came from a metric that pooled a whole batch into one affine fit. Per patch they are 0.647 and 0.450. The metric is per-patch now. |
 | TXM carries less high-frequency content than SEM | Measured, the opposite: TXM holds more relative power in the four finest bands. |
 | scale mismatch is the most likely fatal flaw | Separability is flat across a 16× range of downsampling, and the 2.9× run failed. Downgraded, not eliminated. |
+| the scale-matched run's C2ST was 0.9990 and its crack contrast 0.963 | Both were measured wrong. `eval_translation.py` hardcoded the 1:1 patch bank, so a model trained on 2.9×-downsampled SEM was evaluated on full-scale patches — the exact mismatch that run existed to fix. And its crack contrast was read from a `cache/translated` written by the *high-pass* model, which is why the two runs reported an identical 0.963. Re-measured at the correct scale: **C2ST 1.0000** (worst of the five, not joint-second) and **crack contrast 0.970** (best of the five). `eval_translation.py` now takes `--bank-suffix` and `--sem-downsample`, and refuses to reuse a cached translation when the scale differs. |
 
 Two sampling bugs that would have produced plausible wrong numbers are documented in
 [docs/DATA.md](docs/DATA.md): a feature-window margin set from the wrong filter list
